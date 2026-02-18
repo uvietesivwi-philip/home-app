@@ -4,15 +4,12 @@ Home Help MVP web app + Firestore planning/security artifacts.
 
 ## What is implemented now
 
-A runnable **high-fidelity enhanced MVP** lives under `web/` with:
-- Cinematic hero section with full-bleed video background and branded copy
-- Premium visual system (glass panels, media cards, chips, gradients, responsive layout)
-- Guided user journey UX (discover → save → track → request)
-- Rich content cards with photography-driven thumbnails + metadata
-- Feature detail panel with image/video background treatment and richer descriptions
-- Search + sort + category/subcategory track navigation
-- Save content and continue-watching/progress tracking
-- Service request flow with phone/location/time/details
+A runnable MVP web experience lives under `web/` with:
+- Category browsing for Cook/Care/DIY/Family
+- Content feed with filter by category/subcategory
+- Save content flow
+- Continue watching/progress tracking flow
+- Service request submission + request note updates
 - Admin utility page to seed and review content (mock mode)
 
 ## Run locally
@@ -30,6 +27,7 @@ Then open:
 ## Data mode
 
 `web/js/config.js` uses `USE_MOCK_DATA: true` so the MVP runs without backend setup.
+`web/js/config.js` currently uses `USE_MOCK_DATA: true` so the MVP runs without backend setup.
 
 To move to production Firebase mode:
 1. Add Firebase config values in `web/js/config.js`.

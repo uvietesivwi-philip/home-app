@@ -119,4 +119,10 @@
     "bgVideo": "https://cdn.coverr.co/videos/coverr-a-man-cleaning-a-window-1594913971287?download=1080p",
     "createdAt": "2026-01-20T10:00:00.000Z"
   }
+  {"id":"c1","title":"Jollof Rice Basics","summary":"Simple African recipe starter.","category":"cook","subcategory":"african","type":"video","createdAt":"2026-01-10T10:00:00.000Z"},
+  {"id":"c2","title":"Continental Pasta Night","summary":"Fast family pasta dinner.","category":"cook","subcategory":"continental","type":"video","createdAt":"2026-01-12T10:00:00.000Z"},
+  {"id":"c3","title":"Bath Time Routine","summary":"Child bathing tips and sequence.","category":"care","subcategory":"bathing","type":"video","createdAt":"2026-01-13T10:00:00.000Z"},
+  {"id":"c4","title":"Easy Home Decor Refresh","summary":"DIY weekend decor refresh.","category":"diy","subcategory":"decor","type":"guide","createdAt":"2026-01-15T10:00:00.000Z"},
+  {"id":"c5","title":"Family Indoor Activities","summary":"Parent-kid activity ideas.","category":"family","subcategory":"parents","type":"activity","createdAt":"2026-01-16T10:00:00.000Z"},
+  {"id":"c6","title":"Kids Story Time","summary":"Short bedtime story flow.","category":"family","subcategory":"kids","type":"story","createdAt":"2026-01-17T10:00:00.000Z"}
 ]

@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Home Help — Family Lifestyle OS</title>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <video class="hero-video" autoplay muted loop playsinline poster="https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=1400&q=80">
+        <source src="https://cdn.coverr.co/videos/coverr-a-mother-and-daughter-cooking-1607618211448?download=1080p" type="video/mp4" />
+      </video>
+      <div class="hero-overlay"></div>
+      <div class="hero-content">
+        <p class="eyebrow">HOME HELP • PREMIUM MVP</p>
+        <h1>Your family lifestyle hub — learn, plan, and request trusted support.</h1>
+        <p class="hero-copy">
+          Beautiful, practical guidance for cooking, childcare, home maintenance, and family bonding — with on-demand service requests when life gets busy.
+        </p>
+        <div class="hero-actions">
+          <button id="loginBtn">Sign In Demo User</button>
+          <button id="logoutBtn" class="secondary">Sign Out</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="panel sticky glass">
+        <h2>Guided journey</h2>
+        <p class="subtle">A premium step-by-step flow designed for real homes.</p>
+        <ol class="journey-list">
+          <li><span>1</span> Discover curated content experiences</li>
+          <li><span>2</span> Save your personal home playbook</li>
+          <li><span>3</span> Track routines and build consistency</li>
+          <li><span>4</span> Request trusted human support</li>
+        </ol>
+
+        <div class="stat-grid">
+          <article>
+            <p class="label">Saved Guides</p>
+            <p id="savedCount" class="value">0</p>
+          </article>
+          <article>
+            <p class="label">Service Requests</p>
+            <p id="requestCount" class="value">0</p>
+          </article>
+        </div>
+
+        <section>
+          <h3>Continue journey</h3>
+          <div id="continueBox" class="list"></div>
+        </section>
+      </aside>
+
+      <section class="stack">
+        <section class="panel glass">
+          <h2>Experience tracks</h2>
+          <p class="subtle">Navigate by life moment and family need.</p>
+          <div id="categoryGrid" class="pill-grid"></div>
+          <div id="subcategoryGrid" class="pill-grid"></div>
+        </section>
+
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <h2>Content studio</h2>
+              <p class="subtle">Editorial-quality tutorials, stories, and routines.</p>
+            </div>
+            <button id="refreshContent" class="secondary">Refresh</button>
+          </div>
+          <div class="filters">
+            <input id="searchInput" placeholder="Search: jollof, bedtime, maintenance checklist..." />
+            <select id="sortSelect">
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="shortest">Shortest duration</option>
+            </select>
+          </div>
+          <div id="contentList" class="card-list"></div>
+        </section>
+
+        <section class="panel split glass">
+          <div>
+            <h2>Feature detail</h2>
+            <div id="detailBox" class="detail-box"></div>
+          </div>
+          <div>
+            <h2>Saved collection</h2>
+            <div id="savedList" class="list"></div>
+          </div>
+        </section>
+
+        <section class="panel glass">
+          <h2>Request support</h2>
+          <p class="subtle">Book practical services with clear details for fast response.</p>
+          <form id="requestForm" class="form-grid">
+            <label>Service type
+              <select name="type" required>
+                <option value="maid">Maid</option>
+                <option value="driver">Driver</option>
+                <option value="escort">Security Escort</option>
+              </select>
+            </label>
+            <label>Contact phone
+              <input type="tel" name="phone" required placeholder="e.g. +234..." />
+            </label>
+            <label>Location
+              <input type="text" name="location" required placeholder="Neighborhood / estate" />
+            </label>
+            <label>Preferred time
+              <input type="datetime-local" name="preferredTime" />
+            </label>
+            <label class="full">Request details
+              <textarea name="notes" rows="4" placeholder="Tell us exactly what kind of help you need"></textarea>
+            </label>
+            <button type="submit">Submit Request</button>
+          </form>
+
+          <h3>My requests</h3>
+          <div id="requestList" class="list"></div>
+        </section>
+      </section>
+    </main>
+
+    <template id="contentItemTemplate">
+      <article class="content-card">
+        <div class="media-wrap">
+          <img class="cover" alt="Content visual" />
+          <div class="media-gradient"></div>
+          <p class="chip media-chip"></p>
+        </div>
+
+        <div class="content-card-body">
+          <div class="content-card-head">
+            <p class="chip meta"></p>
+            <p class="chip audience"></p>
+          </div>
+          <h3 class="title"></h3>
+          <p class="summary"></p>
+          <p class="small details"></p>
+          <div class="chip-row tags"></div>
+          <div class="actions">
+            <button class="viewBtn secondary">View details</button>
+            <button class="saveBtn">Save</button>
+            <button class="progressBtn secondary">+30s Progress</button>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <script type="module" src="./js/app.js"></script>
+  </body>
+</html>

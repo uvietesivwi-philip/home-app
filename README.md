@@ -26,6 +26,7 @@ Then open:
 
 ## Data mode
 
+`web/js/config.js` uses `USE_MOCK_DATA: true` so the MVP runs without backend setup.
 `web/js/config.js` currently uses `USE_MOCK_DATA: true` so the MVP runs without backend setup.
 
 To move to production Firebase mode:
@@ -39,3 +40,18 @@ To move to production Firebase mode:
 - `FIRESTORE_SCREEN_QUERIES.md`: exact Firestore query mapping per app screen.
 - `NEXT_STEPS.md`: implementation checklist after baseline setup.
 - `MVP_BUILD_TASKS.md`: start-to-finish build checklist.
+
+
+## Deploy to a live server
+
+Fastest path is Firebase Hosting (this repo includes `firebase.json`).
+
+```bash
+npm install -g firebase-tools
+firebase login
+cp .firebaserc.example .firebaserc
+# edit .firebaserc -> your project id
+firebase deploy --only hosting
+```
+
+For full instructions (including Firestore rules/index deploy and Vercel/Netlify alternatives), see `HOSTING_GUIDE.md`.

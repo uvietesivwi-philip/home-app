@@ -97,12 +97,15 @@ export const dataApi = {
     return content ? { progress: progress[0], content } : null;
   },
 
+  async createRequest({ userId, type, phone, location, notes, preferredTime }) {
   async createRequest({ userId, type, notes, preferredTime }) {
     const requests = getLS(LS_KEYS.requests);
     requests.push({
       id: crypto.randomUUID(),
       userId,
       type,
+      phone: phone || null,
+      location: location || null,
       notes,
       preferredTime: preferredTime || null,
       status: 'pending',

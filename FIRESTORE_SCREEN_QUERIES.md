@@ -136,6 +136,16 @@ addDoc(collection(db, "requests"), {
 })
 ```
 
+
+### Update request details (user-editable fields only)
+```ts
+updateDoc(doc(db, "requests", requestId), {
+  notes: updatedNotes,
+  preferredTime: updatedPreferredTime
+})
+```
+`status`, `type`, `userId`, and `createdAt` remain immutable for end users in rules.
+
 ## Saved content screen
 ```ts
 query(

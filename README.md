@@ -25,3 +25,6 @@ MVP planning artifacts for the Home Help app.
    ```bash
    firebase deploy --only firestore:indexes
    ```
+
+## Next execution step
+See `NEXT_STEPS.md` for the immediate implementation checklist (emulator rule tests, client write contracts, admin path, compliance/release readiness).

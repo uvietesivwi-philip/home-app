@@ -1,0 +1,36 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "contentProgress",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "content",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "content",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "subcategory", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "content",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

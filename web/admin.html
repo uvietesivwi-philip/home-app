@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Home Help Admin MVP</title>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Home Help Admin (MVP)</h1>
+      <p>Seed and curate content. In production, route via trusted backend/admin claims.</p>
+    </header>
+    <main>
+      <section class="card">
+        <h2>Seed Content (Mock Mode)</h2>
+        <button id="seedBtn">Seed Default Content</button>
+        <p id="seedStatus"></p>
+      </section>
+      <section class="card">
+        <h2>Current Content</h2>
+        <div id="contentAdminList" class="list"></div>
+      </section>
+    </main>
+    <script type="module" src="./js/admin.js"></script>
+  </body>
+</html>

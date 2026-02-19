@@ -118,6 +118,7 @@ To move to production Firebase mode:
 - `FIRESTORE_SCREEN_QUERIES.md`: exact Firestore query mapping per app screen.
 - `NEXT_STEPS.md`: implementation checklist after baseline setup.
 - `MVP_BUILD_TASKS.md`: start-to-finish build checklist.
+- `FIREBASE_OBSERVABILITY_AND_BACKUPS.md`: PITR, backups, observability and alert thresholds runbook.
 
 
 

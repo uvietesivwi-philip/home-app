@@ -103,7 +103,9 @@ function refreshPolicyUI() {
 }
 
 async function getVisibleContent() {
-  const rows = await dataApi.listContent({ category: state.category, subcategory: state.subcategory || undefined });
+  const rows = await withTrace('content_list_trace', () =>
+    dataApi.listContent({ category: state.category, subcategory: state.subcategory || undefined })
+  );
   return sortRows(rows.filter((row) => textIncludes(row, state.searchTerm)));
 }
 
@@ -114,6 +116,7 @@ function renderCategoryJourney() {
       createPill(category.toUpperCase(), state.category === category, async () => {
         state.category = category;
         state.subcategory = null;
+        trackEvent('journey_category_selected', { category });
         renderSubcategories();
         await renderContent();
       })
@@ -314,11 +317,13 @@ els.deleteAccountBtn.addEventListener('click', async () => {
 
 els.searchInput.addEventListener('input', async (event) => {
   state.searchTerm = event.target.value;
+  trackEvent('journey_search_used', { search_length: state.searchTerm.length, category: state.category });
   await renderContent();
 });
 
 els.sortSelect.addEventListener('change', async (event) => {
   state.sortBy = event.target.value;
+  trackEvent('journey_sort_changed', { sort_by: state.sortBy });
   await renderContent();
 });
 
@@ -365,7 +370,9 @@ els.requestForm.addEventListener('submit', async (event) => {
   await renderRequests();
 });
 
+await initObservability();
 await dataApi.bootstrap();
 renderCategoryJourney();
 renderSubcategories();
 await refreshAll();
+trackEvent('screen_view', { screen_name: 'home' });

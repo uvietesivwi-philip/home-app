@@ -1,0 +1,80 @@
+[
+  {
+    "id": "c1",
+    "title": "Jollof Rice Masterclass",
+    "summary": "Layered flavor, perfect texture, and no-burn techniques.",
+    "description": "A step-by-step kitchen guide for party-style jollof with timing cues and substitutions.",
+    "category": "cook",
+    "subcategory": "african",
+    "type": "video",
+    "audience": "parents",
+    "durationMin": 14,
+    "tags": ["african", "jollof", "weekend"],
+    "createdAt": "2026-01-10T10:00:00.000Z"
+  },
+  {
+    "id": "c2",
+    "title": "Continental Family Pasta Night",
+    "summary": "Fast premium dinner flow for adults and kids.",
+    "description": "Build a pasta night at home with prep sequencing and kid-friendly adaptations.",
+    "category": "cook",
+    "subcategory": "continental",
+    "type": "video",
+    "audience": "general",
+    "durationMin": 11,
+    "tags": ["continental", "quick", "family"],
+    "createdAt": "2026-01-12T10:00:00.000Z"
+  },
+  {
+    "id": "c3",
+    "title": "Calm Bath Routine for Kids",
+    "summary": "Reduce chaos with a repeatable evening routine.",
+    "description": "A gentle childcare sequence with hygiene checkpoints and post-bath transitions.",
+    "category": "care",
+    "subcategory": "bathing",
+    "type": "video",
+    "audience": "kids",
+    "durationMin": 9,
+    "tags": ["care", "routine", "safety"],
+    "createdAt": "2026-01-13T10:00:00.000Z"
+  },
+  {
+    "id": "c4",
+    "title": "Designer-Style Home Refresh",
+    "summary": "Transform rooms with low-cost high-impact moves.",
+    "description": "A visual DIY walkthrough for declutter, lighting upgrades, and seasonal decor moodboards.",
+    "category": "diy",
+    "subcategory": "decor",
+    "type": "guide",
+    "audience": "general",
+    "durationMin": 19,
+    "tags": ["diy", "decor", "budget"],
+    "createdAt": "2026-01-15T10:00:00.000Z"
+  },
+  {
+    "id": "c5",
+    "title": "Family Night Activity Blueprint",
+    "summary": "Connection-focused activities with zero prep stress.",
+    "description": "A framework for game nights, storytelling circles, and healthy routines.",
+    "category": "family",
+    "subcategory": "parents",
+    "type": "activity",
+    "audience": "parents",
+    "durationMin": 16,
+    "tags": ["family", "activities", "bonding"],
+    "createdAt": "2026-01-16T10:00:00.000Z"
+  },
+  {
+    "id": "c6",
+    "title": "Premium Bedtime Story Ritual",
+    "summary": "Warm, consistent, language-building story sessions.",
+    "description": "Build emotional security and learning through scripted prompts and pacing cues.",
+    "category": "family",
+    "subcategory": "kids",
+    "type": "story",
+    "audience": "kids",
+    "durationMin": 8,
+    "tags": ["kids", "story", "bedtime"],
+    "createdAt": "2026-01-17T10:00:00.000Z"
+  }
+]

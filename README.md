@@ -120,6 +120,20 @@ To move to production Firebase mode:
 - `MVP_BUILD_TASKS.md`: start-to-finish build checklist.
 - `FIREBASE_OBSERVABILITY_AND_BACKUPS.md`: PITR, backups, observability and alert thresholds runbook.
 
+## Seed scripts (taxonomy + sample content)
+
+Use the seed script to bootstrap Firestore with an initial content taxonomy and a starter content library.
+
+```bash
+npm install firebase-admin
+node scripts/seed-initial-content.mjs
+node scripts/seed-initial-content.mjs --apply
+```
+
+- `scripts/seed-data/content-taxonomy.json`: initial category/subcategory taxonomy.
+- `scripts/seed-data/sample-content.json`: initial sample content set.
+- `scripts/seed-initial-content.mjs`: dry-run by default; pass `--apply` to write.
+
 
 
 ## Admin claim operations

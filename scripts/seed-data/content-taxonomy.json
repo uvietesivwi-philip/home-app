@@ -1,0 +1,43 @@
+[
+  {
+    "id": "cook",
+    "label": "Cook",
+    "description": "Practical recipes and meal systems for households.",
+    "subcategories": [
+      { "id": "african", "label": "African" },
+      { "id": "continental", "label": "Continental" }
+    ],
+    "sortOrder": 10
+  },
+  {
+    "id": "care",
+    "label": "Care",
+    "description": "Daily caregiving routines for kids and family members.",
+    "subcategories": [
+      { "id": "bathing", "label": "Bathing" },
+      { "id": "dressing", "label": "Dressing" },
+      { "id": "hairstyling", "label": "Hairstyling" }
+    ],
+    "sortOrder": 20
+  },
+  {
+    "id": "diy",
+    "label": "DIY",
+    "description": "Simple at-home improvements and maintenance guides.",
+    "subcategories": [
+      { "id": "decor", "label": "Decor" },
+      { "id": "maintenance", "label": "Maintenance" }
+    ],
+    "sortOrder": 30
+  },
+  {
+    "id": "family",
+    "label": "Family",
+    "description": "Connection-building routines for parents and kids.",
+    "subcategories": [
+      { "id": "parents", "label": "Parents" },
+      { "id": "kids", "label": "Kids" }
+    ],
+    "sortOrder": 40
+  }
+]

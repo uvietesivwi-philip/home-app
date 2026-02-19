@@ -15,9 +15,7 @@
       <div class="hero-content">
         <p class="eyebrow">HOME HELP • PREMIUM MVP</p>
         <h1>Your family lifestyle hub — learn, plan, and request trusted support.</h1>
-        <p class="hero-copy">
-          Beautiful, practical guidance for cooking, childcare, home maintenance, and family bonding — with on-demand service requests when life gets busy.
-        </p>
+        <p class="hero-copy">Beautiful, practical guidance for cooking, childcare, home maintenance, and family bonding.</p>
         <div class="hero-actions">
           <button id="loginBtn">Sign In Demo User</button>
           <button id="logoutBtn" class="secondary">Sign Out</button>
@@ -37,14 +35,8 @@
         </ol>
 
         <div class="stat-grid">
-          <article>
-            <p class="label">Saved Guides</p>
-            <p id="savedCount" class="value">0</p>
-          </article>
-          <article>
-            <p class="label">Service Requests</p>
-            <p id="requestCount" class="value">0</p>
-          </article>
+          <article><p class="label">Saved Guides</p><p id="savedCount" class="value">0</p></article>
+          <article><p class="label">Service Requests</p><p id="requestCount" class="value">0</p></article>
         </div>
 
         <section>
@@ -102,83 +94,16 @@
                 <option value="escort">Security Escort</option>
               </select>
             </label>
-            <label>Contact phone
-              <input type="tel" name="phone" required placeholder="e.g. +234..." />
-            </label>
-            <label>Location
-              <input type="text" name="location" required placeholder="Neighborhood / estate" />
-            </label>
-            <label>Preferred time
-              <input type="datetime-local" name="preferredTime" />
-            </label>
-            <label class="full">Request details
-              <textarea name="notes" rows="4" placeholder="Tell us exactly what kind of help you need"></textarea>
-            </label>
+            <label>Contact phone<input type="tel" name="phone" required placeholder="e.g. +234..." /></label>
+            <label>Location<input type="text" name="location" required placeholder="Neighborhood / estate" /></label>
+            <label>Preferred time<input type="datetime-local" name="preferredTime" /></label>
+            <label class="full">Request details<textarea name="notes" rows="4" placeholder="Tell us exactly what kind of help you need"></textarea></label>
             <button type="submit">Submit Request</button>
           </form>
 
           <h3>My requests</h3>
           <div id="requestList" class="list"></div>
         </section>
-    <title>Home Help MVP</title>
-    <link rel="stylesheet" href="./css/style.css" />
-  </head>
-  <body>
-    <header>
-      <h1>Home Help MVP</h1>
-      <p>Cooking, childcare, DIY, family, and services in one app.</p>
-      <div class="actions">
-        <button id="loginBtn">Sign In Demo User</button>
-        <button id="logoutBtn" class="secondary">Sign Out</button>
-      </div>
-    </header>
-
-    <main>
-      <section class="card">
-        <h2>Categories</h2>
-        <div id="categoryGrid" class="grid"></div>
-      </section>
-
-      <section class="card">
-        <h2>Content</h2>
-        <div class="filters">
-          <select id="categoryFilter"></select>
-          <select id="subcategoryFilter"></select>
-          <button id="refreshContent" class="secondary">Refresh</button>
-        </div>
-        <div id="contentList" class="list"></div>
-      </section>
-
-      <section class="card">
-        <h2>Saved Content</h2>
-        <div id="savedList" class="list"></div>
-      </section>
-
-      <section class="card">
-        <h2>Continue Watching</h2>
-        <div id="continueBox" class="list"></div>
-      </section>
-
-      <section class="card">
-        <h2>Request Service</h2>
-        <form id="requestForm">
-          <label>Type
-            <select name="type" required>
-              <option value="maid">Maid</option>
-              <option value="driver">Driver</option>
-              <option value="escort">Security Escort</option>
-            </select>
-          </label>
-          <label>Notes
-            <textarea name="notes" rows="3" placeholder="Describe your needs"></textarea>
-          </label>
-          <label>Preferred time
-            <input type="datetime-local" name="preferredTime" />
-          </label>
-          <button type="submit">Submit Request</button>
-        </form>
-        <h3>My Requests</h3>
-        <div id="requestList" class="list"></div>
       </section>
     </main>
 
@@ -189,12 +114,8 @@
           <div class="media-gradient"></div>
           <p class="chip media-chip"></p>
         </div>
-
         <div class="content-card-body">
-          <div class="content-card-head">
-            <p class="chip meta"></p>
-            <p class="chip audience"></p>
-          </div>
+          <div class="content-card-head"><p class="chip meta"></p><p class="chip audience"></p></div>
           <h3 class="title"></h3>
           <p class="summary"></p>
           <p class="small details"></p>
@@ -204,13 +125,6 @@
             <button class="saveBtn">Save</button>
             <button class="progressBtn secondary">+30s Progress</button>
           </div>
-      <article class="item">
-        <h3 class="title"></h3>
-        <p class="summary"></p>
-        <p class="meta"></p>
-        <div class="actions">
-          <button class="saveBtn">Save</button>
-          <button class="progressBtn secondary">+30s Progress</button>
         </div>
       </article>
     </template>

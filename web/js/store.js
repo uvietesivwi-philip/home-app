@@ -41,9 +41,7 @@ export const dataApi = {
     if (!APP_CONFIG.USE_MOCK_DATA) {
       throw new Error('Firebase mode is not wired in this repository yet.');
     }
-    if (!localStorage.getItem(LS_KEYS.content)) {
-      setLS(LS_KEYS.content, await loadDefaultContent());
-    }
+    if (!localStorage.getItem(LS_KEYS.content)) setLS(LS_KEYS.content, await loadDefaultContent());
     if (!localStorage.getItem(LS_KEYS.saved)) setLS(LS_KEYS.saved, []);
     if (!localStorage.getItem(LS_KEYS.progress)) setLS(LS_KEYS.progress, []);
     if (!localStorage.getItem(LS_KEYS.requests)) setLS(LS_KEYS.requests, []);
@@ -51,9 +49,9 @@ export const dataApi = {
 
   async listContent({ category, subcategory } = {}) {
     let rows = getLS(LS_KEYS.content);
-    if (category && category !== 'all') rows = rows.filter((x) => x.category === category);
-    if (subcategory && subcategory !== 'all') rows = rows.filter((x) => x.subcategory === subcategory);
-    return rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    if (category) rows = rows.filter((x) => x.category === category);
+    if (subcategory) rows = rows.filter((x) => x.subcategory === subcategory);
+    return rows;
   },
 
   async listSaved(userId) {
@@ -98,7 +96,6 @@ export const dataApi = {
   },
 
   async createRequest({ userId, type, phone, location, notes, preferredTime }) {
-  async createRequest({ userId, type, notes, preferredTime }) {
     const requests = getLS(LS_KEYS.requests);
     requests.push({
       id: crypto.randomUUID(),
@@ -130,7 +127,6 @@ export const dataApi = {
   },
 
   async seedDefaultContent() {
-    const content = await loadDefaultContent();
-    setLS(LS_KEYS.content, content);
+    setLS(LS_KEYS.content, await loadDefaultContent());
   }
 };

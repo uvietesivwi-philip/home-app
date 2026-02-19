@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest run",
+    "test": "node --test tests/unit/config.test.js tests/rules/firestore-rules.test.js tests/integration/static-server.test.js && npx firebase emulators:exec --only firestore \"vitest run tests/firestore.rules.test.js tests/repository.integration.test.js\"",
     "test:rules": "vitest run tests/firestore.rules.test.js",
     "test:integration": "vitest run tests/repository.integration.test.js",
     "test:ci": "npm run test:rules && npm run test:integration",

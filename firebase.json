@@ -1,73 +1,36 @@
 {
-  "firestore": [
-    {
-      "target": "app",
-      "database": "(default)",
-      "rules": "firestore.rules",
-      "indexes": "firestore.indexes.json"
-    }
-  ],
-  "storage": [
-    {
-      "target": "app",
-      "rules": "storage.rules"
-    }
-  ],
-  "functions": [
-    {
-      "source": "functions",
-      "codebase": "default"
-    }
-  ],
-  "hosting": [
-    {
-      "target": "web",
-      "public": "web",
-      "ignore": [
-        "firebase.json",
-        "**/.*",
-        "**/node_modules/**"
-      ],
-      "cleanUrls": true,
-      "trailingSlash": false,
-      "headers": [
-        {
-          "source": "**/*.@(js|css)",
-          "headers": [
-            {
-              "key": "Cache-Control",
-              "value": "public, max-age=3600"
-            }
-          ]
-        }
-      ],
-      "rewrites": [
-        {
-          "source": "**",
-          "destination": "/index.html"
-        }
-      ]
-    },
-    {
-      "target": "admin",
-      "public": "web",
-      "ignore": [
-        "firebase.json",
-        "**/.*",
-        "**/node_modules/**"
-      ],
-      "cleanUrls": true,
-      "trailingSlash": false,
-      "rewrites": [
-        {
-          "source": "/admin",
-          "destination": "/admin.html"
-        },
-        {
-          "source": "**",
-          "destination": "/index.html"
-        }
-      ]
-    }
-  ]
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "cleanUrls": true,
+    "trailingSlash": false,
+    "headers": [
+      {
+        "source": "**/*.@(js|css)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=3600"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "storage": {
+    "rules": "firebase/storage.rules"
+  }
 }

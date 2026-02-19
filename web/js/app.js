@@ -1,17 +1,26 @@
+import { APP_CONFIG } from './config.js';
 import { authApi, dataApi } from './store.js';
+import {
+  AGE_CATEGORIES,
+  getAgeCategory,
+  getPolicyContext,
+  isRequestTypeAllowed,
+  requiresParentalConsent,
+  getRestrictionNotice
+} from './policy.js';
 
 const taxonomy = {
   cook: ['african', 'continental'],
   care: ['bathing', 'dressing', 'hairstyling'],
   diy: ['decor', 'maintenance'],
   family: ['parents', 'kids']
-const categories = {
-  all: ['all'],
-  cook: ['all', 'african', 'continental'],
-  care: ['all', 'bathing', 'dressing', 'hairstyling'],
-  diy: ['all', 'decor', 'maintenance'],
-  family: ['all', 'parents', 'kids']
 };
+
+const REQUEST_TYPES = [
+  { value: 'maid', label: 'Maid' },
+  { value: 'driver', label: 'Driver' },
+  { value: 'escort', label: 'Security Escort' }
+];
 
 const els = {
   loginBtn: document.getElementById('loginBtn'),
@@ -23,16 +32,19 @@ const els = {
   sortSelect: document.getElementById('sortSelect'),
   contentList: document.getElementById('contentList'),
   detailBox: document.getElementById('detailBox'),
-  categoryFilter: document.getElementById('categoryFilter'),
-  subcategoryFilter: document.getElementById('subcategoryFilter'),
-  refreshContent: document.getElementById('refreshContent'),
-  contentList: document.getElementById('contentList'),
   savedList: document.getElementById('savedList'),
   continueBox: document.getElementById('continueBox'),
   requestForm: document.getElementById('requestForm'),
+  requestType: document.getElementById('requestType'),
   requestList: document.getElementById('requestList'),
   savedCount: document.getElementById('savedCount'),
   requestCount: document.getElementById('requestCount'),
+  requestPolicyNotice: document.getElementById('requestPolicyNotice'),
+  ageInput: document.getElementById('ageInput'),
+  ageCategoryPill: document.getElementById('ageCategoryPill'),
+  parentalConsentBox: document.getElementById('parentalConsentBox'),
+  consentBtn: document.getElementById('consentBtn'),
+  policyDisclosure: document.getElementById('policyDisclosure'),
   tpl: document.getElementById('contentItemTemplate')
 };
 
@@ -42,7 +54,9 @@ const state = {
   subcategory: null,
   searchTerm: '',
   sortBy: 'newest',
-  selectedContentId: null
+  selectedContentId: null,
+  age: 21,
+  policyContext: getPolicyContext()
 };
 
 function createPill(text, active, onClick) {
@@ -74,6 +88,28 @@ function sortRows(rows) {
     out.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }
   return out;
+}
+
+function refreshPolicyUI() {
+  const ageCategory = getAgeCategory(state.age);
+  els.ageCategoryPill.textContent = `Age category: ${ageCategory.replace('_', ' ')}`;
+
+  const policyNotice = getRestrictionNotice(state.policyContext);
+  els.requestPolicyNotice.textContent = policyNotice || 'All request types are currently enabled.';
+
+  const parentalRequired = requiresParentalConsent(ageCategory, state.policyContext);
+  els.parentalConsentBox.hidden = !parentalRequired;
+  els.policyDisclosure.innerHTML = `
+    Privacy & disclosures: by using request workflows you agree to data handling described in
+    <a href="${APP_CONFIG.PRIVACY.policyUrl}" target="_blank" rel="noreferrer">Privacy Policy</a>
+    and <a href="${APP_CONFIG.PRIVACY.childrenNoticeUrl}" target="_blank" rel="noreferrer">Children's Privacy Notice</a>.
+    Contact <a href="mailto:${APP_CONFIG.PRIVACY.supportEmail}">${APP_CONFIG.PRIVACY.supportEmail}</a> for privacy requests.
+  `;
+
+  els.requestType.innerHTML = REQUEST_TYPES.map((type) => {
+    const disabled = !isRequestTypeAllowed(type.value, state.policyContext);
+    return `<option value="${type.value}" ${disabled ? 'disabled' : ''}>${type.label}${disabled ? ' (Unavailable)' : ''}</option>`;
+  }).join('');
 }
 
 async function getVisibleContent() {
@@ -133,7 +169,6 @@ function renderDetail(row) {
     <p class="subtle">${row.description || row.summary}</p>
     <p class="small">Category: <strong>${row.category}/${row.subcategory}</strong> • Type: <strong>${row.type}</strong></p>
     <p class="small">Audience: <strong>${row.audience || 'general'}</strong> • Duration: <strong>${row.durationMin || '-'} min</strong></p>
-    <div class="chip-row">${(row.tags || []).map((tag) => `<span class="chip">#${tag}</span>`).join('')}</div>
   `;
 }
 
@@ -156,7 +191,6 @@ async function renderContent() {
     node.querySelector('.title').textContent = row.title;
     node.querySelector('.summary').textContent = row.summary;
     node.querySelector('.details').textContent = `${row.type.toUpperCase()} • ${row.durationMin || '-'} min`;
-    node.querySelector('.tags').innerHTML = (row.tags || []).map((tag) => `<span class="chip">${tag}</span>`).join('');
 
     node.querySelector('.viewBtn').addEventListener('click', () => {
       state.selectedContentId = row.id;
@@ -191,37 +225,20 @@ async function renderSaved() {
   }
   const rows = await dataApi.listSaved(state.currentUser.uid);
   els.savedCount.textContent = String(rows.length);
-  if (!rows.length) {
-    els.savedList.innerHTML = '<p class="small">No saved content yet. Save useful guides to build your routine.</p>';
-    return;
-  }
-  els.savedList.innerHTML = rows
-    .map(
-      (row) => `
-      <article class="item">
-        <strong>${row.content.title}</strong>
-        <p class="small">${row.content.category}/${row.content.subcategory} • saved ${new Date(row.savedAt).toLocaleString()}</p>
-      </article>`
-    )
-    .join('');
+  els.savedList.innerHTML = rows.length
+    ? rows.map((row) => `<article class="item"><strong>${row.content.title}</strong></article>`).join('')
+    : '<p class="small">No saved content yet.</p>';
 }
 
 async function renderContinueWatching() {
   if (!state.currentUser) {
-    els.continueBox.innerHTML = '<p class="small">Sign in to track progress and resume content.</p>';
+    els.continueBox.innerHTML = '<p class="small">Sign in to track progress.</p>';
     return;
   }
   const row = await dataApi.continueWatching(state.currentUser.uid);
-  if (!row) {
-    els.continueBox.innerHTML = '<p class="small">No progress yet. Tap +30s on any content to start tracking.</p>';
-    return;
-  }
-  els.continueBox.innerHTML = `
-    <article class="item">
-      <strong>${row.content.title}</strong>
-      <p class="small">${row.progress.progressSeconds}s tracked • updated ${new Date(row.progress.updatedAt).toLocaleString()}</p>
-    </article>
-  `;
+  els.continueBox.innerHTML = row
+    ? `<article class="item"><strong>${row.content.title}</strong><p class="small">${row.progress.progressSeconds}s tracked.</p></article>`
+    : '<p class="small">No progress yet.</p>';
 }
 
 async function renderRequests() {
@@ -232,162 +249,18 @@ async function renderRequests() {
   }
   const rows = await dataApi.listRequests(state.currentUser.uid);
   els.requestCount.textContent = String(rows.length);
-  if (!rows.length) {
-    els.requestList.innerHTML = '<p class="small">No requests yet. Submit a service request when you need support.</p>';
-    return;
-  }
-
-  els.requestList.innerHTML = '';
-  rows.forEach((row) => {
-    const item = document.createElement('article');
-    item.className = 'item';
-    item.innerHTML = `
-      <div class="request-top">
-        <strong>${row.type.toUpperCase()} request</strong>
-        <span class="status">${row.status}</span>
-      </div>
-      <p class="small">Phone: ${row.phone || '-'} • Location: ${row.location || '-'}</p>
-      <p>${row.notes || '(no notes)'}</p>
-      <p class="small">Created ${new Date(row.createdAt).toLocaleString()}</p>
-  tpl: document.getElementById('contentItemTemplate')
-};
-
-let currentUser = null;
-
-function renderCategories() {
-  els.categoryGrid.innerHTML = '';
-  Object.keys(categories).filter((x) => x !== 'all').forEach((category) => {
-    const div = document.createElement('div');
-    div.className = 'badge';
-    div.textContent = `${category.toUpperCase()} • ${categories[category].length - 1} tracks`;
-    els.categoryGrid.appendChild(div);
-  });
-}
-
-function hydrateFilters() {
-  els.categoryFilter.innerHTML = Object.keys(categories)
-    .map((c) => `<option value="${c}">${c}</option>`)
-    .join('');
-  fillSubcategories('all');
-}
-
-function fillSubcategories(category) {
-  const options = categories[category] || ['all'];
-  els.subcategoryFilter.innerHTML = options.map((s) => `<option value="${s}">${s}</option>`).join('');
-}
-
-function mustAuth() {
-  if (!currentUser) throw new Error('Sign in first.');
-}
-
-async function renderContent() {
-  const category = els.categoryFilter.value;
-  const subcategory = els.subcategoryFilter.value;
-  const rows = await dataApi.listContent({
-    category: category === 'all' ? undefined : category,
-    subcategory: subcategory === 'all' ? undefined : subcategory
-  });
-  els.contentList.innerHTML = '';
-  rows.forEach((row) => {
-    const node = els.tpl.content.cloneNode(true);
-    node.querySelector('.title').textContent = row.title;
-    node.querySelector('.summary').textContent = row.summary;
-    node.querySelector('.meta').textContent = `${row.category}/${row.subcategory} • ${row.type}`;
-    node.querySelector('.saveBtn').addEventListener('click', async () => {
-      mustAuth();
-      await dataApi.saveContent({ userId: currentUser.uid, contentId: row.id });
-      await renderSaved();
-    });
-    node.querySelector('.progressBtn').addEventListener('click', async () => {
-      mustAuth();
-      await dataApi.addProgress({ userId: currentUser.uid, contentId: row.id, deltaSeconds: 30 });
-      await renderContinueWatching();
-    });
-    els.contentList.appendChild(node);
-  });
-}
-
-async function renderSaved() {
-  els.savedList.innerHTML = '';
-  if (!currentUser) {
-    els.savedList.innerHTML = '<p class="small">Sign in to see saved content.</p>';
-    return;
-  }
-  const rows = await dataApi.listSaved(currentUser.uid);
-  if (!rows.length) {
-    els.savedList.innerHTML = '<p class="small">No saved content yet.</p>';
-    return;
-  }
-  rows.forEach((row) => {
-    const div = document.createElement('div');
-    div.className = 'item';
-    div.innerHTML = `<strong>${row.content.title}</strong><div class="small">Saved ${new Date(row.savedAt).toLocaleString()}</div>`;
-    els.savedList.appendChild(div);
-  });
-}
-
-async function renderContinueWatching() {
-  els.continueBox.innerHTML = '';
-  if (!currentUser) {
-    els.continueBox.innerHTML = '<p class="small">Sign in to track progress.</p>';
-    return;
-  }
-  const cw = await dataApi.continueWatching(currentUser.uid);
-  if (!cw) {
-    els.continueBox.innerHTML = '<p class="small">No progress tracked yet.</p>';
-    return;
-  }
-  const div = document.createElement('div');
-  div.className = 'item';
-  div.innerHTML = `<strong>${cw.content.title}</strong><div class="small">Progress: ${cw.progress.progressSeconds}s</div>`;
-  els.continueBox.appendChild(div);
-}
-
-async function renderRequests() {
-  els.requestList.innerHTML = '';
-  if (!currentUser) {
-    els.requestList.innerHTML = '<p class="small">Sign in to submit and view requests.</p>';
-    return;
-  }
-  const rows = await dataApi.listRequests(currentUser.uid);
-  if (!rows.length) {
-    els.requestList.innerHTML = '<p class="small">No requests yet.</p>';
-    return;
-  }
-  rows.forEach((row) => {
-    const div = document.createElement('div');
-    div.className = 'item';
-    div.innerHTML = `
-      <strong>${row.type.toUpperCase()} • ${row.status}</strong>
-      <p>${row.notes || '(no notes)'}</p>
-      <p class="small">${new Date(row.createdAt).toLocaleString()}</p>
-      <label>Update notes
-        <textarea rows="2">${row.notes || ''}</textarea>
-      </label>
-      <button class="secondary">Save Notes</button>
-    `;
-    const textarea = item.querySelector('textarea');
-    item.querySelector('button').addEventListener('click', async () => {
-      await dataApi.updateRequestNotes({
-        userId: state.currentUser.uid,
-    const textarea = div.querySelector('textarea');
-    div.querySelector('button').addEventListener('click', async () => {
-      await dataApi.updateRequestNotes({
-        userId: currentUser.uid,
-        requestId: row.id,
-        notes: textarea.value,
-        preferredTime: row.preferredTime
-      });
-      await renderRequests();
-    });
-    els.requestList.appendChild(item);
-    els.requestList.appendChild(div);
-  });
+  els.requestList.innerHTML = rows.length
+    ? rows
+        .map(
+          (row) => `<article class="item"><strong>${row.type.toUpperCase()} • ${row.status}</strong><p class="small">${row.phone || '-'} • ${row.location || '-'}</p></article>`
+        )
+        .join('')
+    : '<p class="small">No requests yet.</p>';
 }
 
 async function refreshAll() {
   state.currentUser = authApi.getCurrentUser();
-  currentUser = authApi.getCurrentUser();
+  refreshPolicyUI();
   await Promise.all([renderContent(), renderSaved(), renderContinueWatching(), renderRequests()]);
 }
 
@@ -411,40 +284,50 @@ els.sortSelect.addEventListener('change', async (event) => {
   await renderContent();
 });
 
+els.ageInput.addEventListener('input', () => {
+  state.age = Number(els.ageInput.value || 0);
+  refreshPolicyUI();
+});
+
+els.consentBtn.addEventListener('click', async () => {
+  ensureSignedIn();
+  await dataApi.createParentalConsentPlaceholder({
+    userId: state.currentUser.uid,
+    childAge: state.age,
+    jurisdiction: state.policyContext.jurisdiction
+  });
+  els.parentalConsentBox.querySelector('.small').textContent =
+    'Parental consent placeholder created. Verification flow to be integrated with KYC provider.';
+});
+
 els.refreshContent.addEventListener('click', renderContent);
 
 els.requestForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   ensureSignedIn();
+
+  const ageCategory = getAgeCategory(state.age);
+  if (requiresParentalConsent(ageCategory, state.policyContext)) {
+    throw new Error('Parental consent is required for under-13 users in this region before request submission.');
+  }
+
   const fd = new FormData(els.requestForm);
   await dataApi.createRequest({
     userId: state.currentUser.uid,
     type: fd.get('type'),
     phone: fd.get('phone'),
     location: fd.get('location'),
-els.categoryFilter.addEventListener('change', async (e) => {
-  fillSubcategories(e.target.value);
-  await renderContent();
-});
-els.subcategoryFilter.addEventListener('change', renderContent);
-els.refreshContent.addEventListener('click', renderContent);
-els.requestForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  mustAuth();
-  const fd = new FormData(els.requestForm);
-  await dataApi.createRequest({
-    userId: currentUser.uid,
-    type: fd.get('type'),
     notes: fd.get('notes'),
-    preferredTime: fd.get('preferredTime')
+    preferredTime: fd.get('preferredTime'),
+    ageCategory,
+    policyContext: state.policyContext
   });
   els.requestForm.reset();
+  refreshPolicyUI();
   await renderRequests();
 });
 
 await dataApi.bootstrap();
 renderCategoryJourney();
 renderSubcategories();
-renderCategories();
-hydrateFilters();
 await refreshAll();

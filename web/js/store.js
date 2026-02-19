@@ -1,11 +1,13 @@
 import { APP_CONFIG } from './config.js';
+import { isRequestTypeAllowed } from './policy.js';
 
 const USER = { uid: 'demo-user-1', name: 'Demo User' };
 const LS_KEYS = {
   content: 'hh_content',
   saved: 'hh_saved',
   progress: 'hh_progress',
-  requests: 'hh_requests'
+  requests: 'hh_requests',
+  parentalConsent: 'hh_parental_consent'
 };
 
 async function loadDefaultContent() {
@@ -41,12 +43,11 @@ export const dataApi = {
     if (!APP_CONFIG.USE_MOCK_DATA) {
       throw new Error('Firebase mode is not wired in this repository yet.');
     }
-    if (!localStorage.getItem(LS_KEYS.content)) {
-      setLS(LS_KEYS.content, await loadDefaultContent());
-    }
+    if (!localStorage.getItem(LS_KEYS.content)) setLS(LS_KEYS.content, await loadDefaultContent());
     if (!localStorage.getItem(LS_KEYS.saved)) setLS(LS_KEYS.saved, []);
     if (!localStorage.getItem(LS_KEYS.progress)) setLS(LS_KEYS.progress, []);
     if (!localStorage.getItem(LS_KEYS.requests)) setLS(LS_KEYS.requests, []);
+    if (!localStorage.getItem(LS_KEYS.parentalConsent)) setLS(LS_KEYS.parentalConsent, []);
   },
 
   async listContent({ category, subcategory } = {}) {
@@ -97,8 +98,11 @@ export const dataApi = {
     return content ? { progress: progress[0], content } : null;
   },
 
-  async createRequest({ userId, type, phone, location, notes, preferredTime }) {
-  async createRequest({ userId, type, notes, preferredTime }) {
+  async createRequest({ userId, type, phone, location, notes, preferredTime, policyContext, ageCategory }) {
+    if (!isRequestTypeAllowed(type, policyContext)) {
+      throw new Error(`The ${type} request type is disabled for this jurisdiction/store policy.`);
+    }
+
     const requests = getLS(LS_KEYS.requests);
     requests.push({
       id: crypto.randomUUID(),
@@ -108,6 +112,7 @@ export const dataApi = {
       location: location || null,
       notes,
       preferredTime: preferredTime || null,
+      ageCategory,
       status: 'pending',
       createdAt: new Date().toISOString()
     });
@@ -127,6 +132,19 @@ export const dataApi = {
     row.notes = notes;
     row.preferredTime = preferredTime || row.preferredTime;
     setLS(LS_KEYS.requests, requests);
+  },
+
+  async createParentalConsentPlaceholder({ userId, childAge, jurisdiction }) {
+    const rows = getLS(LS_KEYS.parentalConsent);
+    rows.push({
+      id: crypto.randomUUID(),
+      userId,
+      childAge,
+      jurisdiction,
+      status: 'placeholder_pending_verification',
+      createdAt: new Date().toISOString()
+    });
+    setLS(LS_KEYS.parentalConsent, rows);
   },
 
   async seedDefaultContent() {

@@ -15,10 +15,11 @@
       <div class="hero-content">
         <p class="eyebrow">HOME HELP • PREMIUM MVP</p>
         <h1>Your family lifestyle hub — learn, plan, and request trusted support.</h1>
-        <p class="hero-copy">Beautiful, practical guidance for cooking, childcare, home maintenance, and family bonding.</p>
+        <p class="hero-copy">Beautiful, practical guidance for cooking, childcare, home maintenance, and family bonding — with on-demand service requests when life gets busy.</p>
         <div class="hero-actions">
           <button id="loginBtn">Sign In Demo User</button>
           <button id="logoutBtn" class="secondary">Sign Out</button>
+          <button id="deleteAccountBtn" class="secondary">Delete Account/Data Request</button>
         </div>
       </div>
     </header>
@@ -34,11 +35,15 @@
           <li><span>4</span> Request trusted human support</li>
         </ol>
 
+        <section>
+          <h3>Profile (<code>users/{uid}</code>)</h3>
+          <div id="profileBox" class="list"></div>
+        </section>
+
         <div class="stat-grid">
           <article><p class="label">Saved Guides</p><p id="savedCount" class="value">0</p></article>
           <article><p class="label">Service Requests</p><p id="requestCount" class="value">0</p></article>
         </div>
-
         <section>
           <h3>Continue journey</h3>
           <div id="continueBox" class="list"></div>
@@ -48,21 +53,17 @@
       <section class="stack">
         <section class="panel glass">
           <h2>Experience tracks</h2>
-          <p class="subtle">Navigate by life moment and family need.</p>
           <div id="categoryGrid" class="pill-grid"></div>
           <div id="subcategoryGrid" class="pill-grid"></div>
         </section>
 
         <section class="panel glass">
           <div class="panel-head">
-            <div>
-              <h2>Content studio</h2>
-              <p class="subtle">Editorial-quality tutorials, stories, and routines.</p>
-            </div>
+            <h2>Content studio</h2>
             <button id="refreshContent" class="secondary">Refresh</button>
           </div>
           <div class="filters">
-            <input id="searchInput" placeholder="Search: jollof, bedtime, maintenance checklist..." />
+            <input id="searchInput" placeholder="Search content..." />
             <select id="sortSelect">
               <option value="newest">Newest</option>
               <option value="oldest">Oldest</option>
@@ -79,29 +80,32 @@
           </div>
           <div>
             <h2>Saved collection</h2>
+            <p class="small">Saved item query + join strategy with orphan handling.</p>
             <div id="savedList" class="list"></div>
           </div>
         </section>
 
         <section class="panel glass">
-          <h2>Request support</h2>
-          <p class="subtle">Book practical services with clear details for fast response.</p>
+          <h2>Submit a support request</h2>
+          <p class="subtle">Only required fields are collected: <strong>type</strong> and <strong>notes</strong>. New requests default to <strong>pending</strong>.</p>
           <form id="requestForm" class="form-grid">
-            <label>Service type
-              <select name="type" required>
-                <option value="maid">Maid</option>
-                <option value="driver">Driver</option>
-                <option value="escort">Security Escort</option>
-              </select>
+            <label>Age
+              <input id="ageInput" type="number" min="0" max="120" value="21" required />
             </label>
-            <label>Contact phone<input type="tel" name="phone" required placeholder="e.g. +234..." /></label>
-            <label>Location<input type="text" name="location" required placeholder="Neighborhood / estate" /></label>
-            <label>Preferred time<input type="datetime-local" name="preferredTime" /></label>
-            <label class="full">Request details<textarea name="notes" rows="4" placeholder="Tell us exactly what kind of help you need"></textarea></label>
+            <label>Age handling
+              <input id="ageCategoryPill" type="text" readonly />
+            </label>
+            <label>Service type
+              <select id="requestType" name="type" required></select>
+            </label>
+            <label class="full">Request notes
+              <textarea name="notes" rows="4" placeholder="Describe the support you need"></textarea>
+            </label>
             <button type="submit">Submit Request</button>
           </form>
 
-          <h3>My requests</h3>
+          <h3>Request history (my account)</h3>
+          <p class="small">History is filtered to your signed-in user. You can only update notes or request cancellation while status is pending.</p>
           <div id="requestList" class="list"></div>
         </section>
       </section>
@@ -119,7 +123,6 @@
           <h3 class="title"></h3>
           <p class="summary"></p>
           <p class="small details"></p>
-          <div class="chip-row tags"></div>
           <div class="actions">
             <button class="viewBtn secondary">View details</button>
             <button class="saveBtn">Save</button>

@@ -87,6 +87,7 @@ A runnable MVP web experience lives under `web/` with:
 - Continue watching/progress tracking flow
 - Service request submission + request note updates
 - Admin utility page to seed and review content (mock mode)
+- Protected admin dashboard scaffold at `apps/admin` with claim/backend-gated access, content CRUD, taxonomy management, and media upload pathing for `content/{contentId}/...`
 
 ## Run locally
 
@@ -99,6 +100,7 @@ python -m http.server 4173
 Then open:
 - User app: `http://localhost:4173/web/`
 - Admin app: `http://localhost:4173/web/admin.html`
+- New protected admin dashboard: `http://localhost:4173/apps/admin/`
 
 ## Data mode
 

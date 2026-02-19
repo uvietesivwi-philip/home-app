@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Protected Content Admin</h1>
+      <p class="muted">Requires <code>admin</code> custom claim or secure backend gate response.</p>
+
+      <section class="card" id="authCard">
+        <h2>Access</h2>
+        <p id="authStatus">Checking session...</p>
+      </section>
+
+      <section class="card hidden" id="taxonomyCard">
+        <h2>Taxonomy Management</h2>
+        <form id="taxonomyForm" class="grid">
+          <label>Category
+            <input name="category" required placeholder="cook" />
+          </label>
+          <label>Subcategory
+            <input name="subcategory" required placeholder="african" />
+          </label>
+          <label>Type
+            <input name="type" required placeholder="video" />
+          </label>
+          <button type="submit">Add option set</button>
+        </form>
+        <pre id="taxonomyPreview"></pre>
+      </section>
+
+      <section class="card hidden" id="contentCard">
+        <h2>Content CRUD</h2>
+        <form id="contentForm" class="grid">
+          <input type="hidden" name="id" />
+          <label>Title<input name="title" required /></label>
+          <label>Summary<textarea name="summary" rows="2" required></textarea></label>
+          <label>Category<input name="category" required /></label>
+          <label>Subcategory<input name="subcategory" required /></label>
+          <label>Type<input name="type" required /></label>
+          <label>Status
+            <select name="status">
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+            </select>
+          </label>
+          <label>Media file<input type="file" name="media" /></label>
+          <div class="actions">
+            <button type="submit">Save content</button>
+            <button type="button" id="resetBtn">Clear</button>
+          </div>
+        </form>
+        <p id="contentStatus" class="muted"></p>
+        <div id="contentList"></div>
+      </section>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

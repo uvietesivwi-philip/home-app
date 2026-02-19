@@ -117,6 +117,34 @@ To move to production Firebase mode:
 - `NEXT_STEPS.md`: implementation checklist after baseline setup.
 - `MVP_BUILD_TASKS.md`: start-to-finish build checklist.
 
+
+
+## Firebase multi-environment configuration
+
+This repo is configured for three Firebase environments in `.firebaserc`:
+- `dev` -> `home-app-dev`
+- `staging` -> `home-app-staging`
+- `prod` -> `home-app-prod`
+
+`firebase.json` now includes deploy targets for:
+- Firestore rules + indexes (`target: app`)
+- Storage rules (`target: app`)
+- Hosting (`target: web`, `target: admin`)
+- Functions (`codebase: default`, source: `functions/`)
+
+Example deploy commands:
+
+```bash
+firebase use dev
+firebase deploy --only firestore:app,storage:app,hosting:web,hosting:admin,functions
+
+firebase use staging
+firebase deploy --only firestore:app,storage:app,hosting:web,hosting:admin,functions
+
+firebase use prod
+firebase deploy --only firestore:app,storage:app,hosting:web,hosting:admin,functions
+```
+
 ## Deploy to a live server
 
 Fastest path is Firebase Hosting (this repo includes `firebase.json`).

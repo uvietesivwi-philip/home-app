@@ -5,70 +5,34 @@
     "summary": "Layered flavor, perfect texture, and no-burn techniques.",
     "category": "cook",
     "subcategory": "african",
-    "type": "video",
+    "durationMin": 14,
+    "difficulty": "intermediate",
+    "language": "English",
+    "mediaPath": "https://cdn.coverr.co/videos/coverr-cooking-pasta-1565710977510?download=1080p",
     "createdAt": "2026-01-10T10:00:00.000Z"
   },
   {
     "id": "c2",
-    "title": "Continental Family Pasta Night",
-    "summary": "Fast premium dinner flow for adults and kids.",
-    "category": "cook",
-    "subcategory": "continental",
-    "type": "video",
-    "createdAt": "2026-01-12T10:00:00.000Z"
-  },
-  {
-    "id": "c3",
     "title": "Calm Bath Routine for Kids",
     "summary": "Reduce chaos with a repeatable evening routine.",
     "category": "care",
     "subcategory": "bathing",
-    "type": "video",
+    "durationMin": 9,
+    "difficulty": "beginner",
+    "language": "English",
+    "mediaPath": "/media/bath-routine.mp4",
     "createdAt": "2026-01-13T10:00:00.000Z"
   },
   {
-    "id": "c4",
-    "title": "Protective Hair Styling Flow",
-    "summary": "Gentle detangle + style system for busy weeks.",
-    "category": "care",
-    "subcategory": "hairstyling",
-    "type": "guide",
-    "createdAt": "2026-01-18T10:00:00.000Z"
-  },
-  {
-    "id": "c5",
-    "title": "Designer-Style Home Refresh",
-    "summary": "Transform rooms with low-cost high-impact moves.",
-    "category": "diy",
-    "subcategory": "decor",
-    "type": "guide",
-    "createdAt": "2026-01-15T10:00:00.000Z"
-  },
-  {
-    "id": "c6",
-    "title": "Easy Home Maintenance Calendar",
-    "summary": "Preventive monthly checks that save money.",
-    "category": "diy",
-    "subcategory": "maintenance",
-    "type": "checklist",
-    "createdAt": "2026-01-20T10:00:00.000Z"
-  },
-  {
-    "id": "c7",
-    "title": "Family Night Activity Blueprint",
-    "summary": "Connection-focused activities with zero prep stress.",
-    "category": "family",
-    "subcategory": "parents",
-    "type": "activity",
-    "createdAt": "2026-01-16T10:00:00.000Z"
-  },
-  {
-    "id": "c8",
+    "id": "c3",
     "title": "Premium Bedtime Story Ritual",
     "summary": "Warm, consistent, language-building story sessions.",
     "category": "family",
     "subcategory": "kids",
-    "type": "story",
+    "durationMin": 8,
+    "difficulty": "beginner",
+    "mediaPath": "gs://demo-bucket/content/bedtime-story.mp4",
+    "requiresAuth": true,
     "createdAt": "2026-01-17T10:00:00.000Z"
   }
 ]

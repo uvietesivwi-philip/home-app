@@ -2,206 +2,154 @@ import { authApi, dataApi } from './store.js';
 import { ContentFilters } from './components/content-filters.js';
 import { resolveCategoryQuery } from './categories/query-builders.js';
 
-const PAGE_SIZE = 4;
-
 const els = {
   loginBtn: document.getElementById('loginBtn'),
   logoutBtn: document.getElementById('logoutBtn'),
-  filterMount: document.getElementById('filterMount'),
-  queryPreview: document.getElementById('queryPreview'),
   contentList: document.getElementById('contentList'),
-  prevPageBtn: document.getElementById('prevPageBtn'),
-  nextPageBtn: document.getElementById('nextPageBtn'),
-  pageMeta: document.getElementById('pageMeta'),
-  refreshContent: document.getElementById('refreshContent'),
-  savedList: document.getElementById('savedList'),
-  continueBox: document.getElementById('continueBox'),
-  suggestedList: document.getElementById('suggestedList'),
-  requestForm: document.getElementById('requestForm'),
-  requestList: document.getElementById('requestList'),
-  savedCount: document.getElementById('savedCount'),
-  requestCount: document.getElementById('requestCount'),
+  detailScreen: document.getElementById('detailScreen'),
+  detailState: document.getElementById('detailState'),
+  detailTitle: document.getElementById('detailTitle'),
+  detailDescription: document.getElementById('detailDescription'),
+  detailMedia: document.getElementById('detailMedia'),
+  detailMetadata: document.getElementById('detailMetadata'),
+  backToList: document.getElementById('backToList'),
   tpl: document.getElementById('contentItemTemplate')
 };
 
 const state = {
   currentUser: null,
-  filters: { category: 'all', subcategory: 'all', type: 'all' },
-  page: 1
+  rows: []
 };
 
-const filters = new ContentFilters({
-  root: els.filterMount,
-  onChange(nextFilters) {
-    state.filters = nextFilters;
-    state.page = 1;
-    renderContent();
-  }
-});
-
-function ensureSignedIn() {
-  if (!state.currentUser) throw new Error('Sign in first.');
+function escapeHtml(value) {
+  return String(value || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
-function renderQueryPreview() {
-  const query = resolveCategoryQuery(state.filters);
-  els.queryPreview.textContent = JSON.stringify(query, null, 2);
+function getRoute() {
+  const match = window.location.hash.match(/^#\/content\/([^/?#]+)/);
+  return { contentId: match ? decodeURIComponent(match[1]) : null };
 }
 
-async function renderContent() {
-  renderQueryPreview();
-
-  const result = await dataApi.listContent({
-    ...state.filters,
-    page: state.page,
-    limit: PAGE_SIZE
-  });
-
+function renderList() {
   els.contentList.innerHTML = '';
-
-  if (!result.rows.length) {
-    els.contentList.innerHTML = '<p class="small">No content matched this filter set.</p>';
-  }
-
-  result.rows.forEach((row) => {
+  state.rows.forEach((row) => {
     const node = els.tpl.content.cloneNode(true);
     node.querySelector('.title').textContent = row.title;
-    node.querySelector('.summary').textContent = row.summary;
-    node.querySelector('.meta').textContent = `${row.category}/${row.subcategory} • ${row.type}`;
-
-    node.querySelector('.saveBtn').addEventListener('click', async () => {
-      ensureSignedIn();
-      await dataApi.saveContent({ userId: state.currentUser.uid, contentId: row.id });
-      await renderSaved();
+    node.querySelector('.summary').textContent = row.summary || row.description || '';
+    node.querySelector('.meta').textContent = `${row.category}/${row.subcategory}`;
+    node.querySelector('.viewBtn').addEventListener('click', () => {
+      window.location.hash = `#/content/${encodeURIComponent(row.id)}`;
     });
-
-    node.querySelector('.progressBtn').addEventListener('click', async () => {
-      ensureSignedIn();
-      await dataApi.addProgress({ userId: state.currentUser.uid, contentId: row.id, deltaSeconds: 30 });
-      await renderContinueWatching();
-    });
-
     els.contentList.appendChild(node);
   });
-
-  const totalPages = Math.max(1, Math.ceil(result.total / result.limit));
-  els.pageMeta.textContent = `Page ${state.page} of ${totalPages} (${result.total} items)`;
-  els.prevPageBtn.disabled = state.page <= 1;
-  els.nextPageBtn.disabled = !result.hasMore;
 }
 
-async function renderSaved() {
-  if (!state.currentUser) {
-    els.savedList.innerHTML = '<p class="small">Sign in to see saved content.</p>';
-    els.savedCount.textContent = '0';
+function showDetailState(message) {
+  els.detailState.textContent = message;
+  els.detailState.hidden = false;
+  els.detailTitle.textContent = '';
+  els.detailDescription.textContent = '';
+  els.detailMedia.innerHTML = '';
+  els.detailMetadata.innerHTML = '';
+}
+
+function renderMetadata(detail) {
+  const metadata = [
+    ['Difficulty', detail.difficulty],
+    ['Duration', detail.durationMin ? `${detail.durationMin} min` : null],
+    ['Language', detail.language]
+  ].filter(([, value]) => Boolean(value));
+
+  if (!metadata.length) {
+    els.detailMetadata.innerHTML = '<li>No metadata available.</li>';
     return;
   }
 
-  const rows = await dataApi.listSaved(state.currentUser.uid);
-  els.savedCount.textContent = String(rows.length);
-  els.savedList.innerHTML = rows.length
-    ? rows.map((row) => `<article class="item"><strong>${row.content.title}</strong></article>`).join('')
-    : '<p class="small">No saved content yet.</p>';
+  els.detailMetadata.innerHTML = metadata
+    .map(([label, value]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</li>`)
+    .join('');
 }
 
-async function renderContinueWatching() {
-  if (!state.currentUser) {
-    els.continueBox.innerHTML = '<p class="small">Sign in to track progress.</p>';
+function renderMedia(detail) {
+  const src = detail.resolvedMediaUrl;
+  if (!src) {
+    els.detailMedia.innerHTML = '<p class="small">Media source is unavailable or invalid.</p>';
     return;
   }
 
-  const cw = await dataApi.continueWatching(state.currentUser.uid);
-  els.continueBox.innerHTML = cw
-    ? `<article class="item"><strong>${cw.content.title}</strong><p class="small">${cw.progress.progressSeconds}s watched</p></article>`
-    : '<p class="small">No progress tracked yet.</p>';
+  els.detailMedia.innerHTML = `
+    <video controls preload="metadata" width="100%">
+      <source src="${escapeHtml(src)}" type="video/mp4" />
+      Your browser does not support video playback.
+    </video>
+  `;
 }
 
-async function renderRequests() {
-  if (!state.currentUser) {
-    els.requestList.innerHTML = '<p class="small">Sign in to submit and view requests.</p>';
-    els.requestCount.textContent = '0';
+async function renderDetail(contentId) {
+  if (!contentId) {
+    showDetailState('Select a content item to view details.');
     return;
   }
 
-  const rows = await dataApi.listRequests(state.currentUser.uid);
-  els.requestCount.textContent = String(rows.length);
-  els.requestList.innerHTML = rows.length
-    ? rows.map((row) => `<article class="item"><strong>${row.type}</strong><p>${row.notes || '(no notes)'}</p></article>`).join('')
-    : '<p class="small">No requests yet.</p>';
+  showDetailState('Loading content...');
+  try {
+    const detail = await dataApi.getContentById({
+      contentId,
+      userId: state.currentUser?.uid
+    });
+
+    els.detailState.hidden = true;
+    els.detailTitle.textContent = detail.title || 'Untitled content';
+    els.detailDescription.textContent = detail.description || detail.summary || 'No description available.';
+    renderMedia(detail);
+    renderMetadata(detail);
+  } catch (error) {
+    if (error?.code === 'not-found') {
+      showDetailState('This content is missing or no longer available.');
+      return;
+    }
+    if (error?.code === 'permission-denied') {
+      showDetailState('You do not have permission to view this content. Please sign in.');
+      return;
+    }
+    showDetailState('Unable to load content right now. Please try again.');
+  }
 }
 
-function renderCategoryJourney() {
-  els.categoryGrid.innerHTML = '';
-  Object.keys(taxonomy).forEach((category) => {
-    els.categoryGrid.appendChild(createPill(category.toUpperCase(), state.category === category, async () => {
-      state.category = category;
-      state.subcategory = null;
-      renderSubcategories();
-      await renderContent();
-    }));
-  });
+async function renderRoute() {
+  const { contentId } = getRoute();
+  await renderDetail(contentId);
 }
 
-function renderSubcategories() {
-  els.subcategoryGrid.innerHTML = '';
-  els.subcategoryGrid.appendChild(createPill('ALL', state.subcategory === null, async () => {
-    state.subcategory = null;
-    renderSubcategories();
-    await renderContent();
-  }));
-  (taxonomy[state.category] || []).forEach((sub) => {
-    els.subcategoryGrid.appendChild(createPill(sub, state.subcategory === sub, async () => {
-      state.subcategory = sub;
-      renderSubcategories();
-      await renderContent();
-    }));
-  });
-}
-
-async function refreshAll() {
+async function refresh() {
   state.currentUser = authApi.getCurrentUser();
-  await Promise.all([renderContent(), renderSaved(), renderContinueWatching(), renderRequests()]);
+  state.rows = await dataApi.listContent();
+  renderList();
+  await renderRoute();
 }
 
 els.loginBtn.addEventListener('click', async () => {
   await authApi.signInDemo();
-  await refreshAll();
+  await refresh();
 });
 
 els.logoutBtn.addEventListener('click', async () => {
   await authApi.signOut();
-  await refreshAll();
+  await refresh();
 });
 
-els.prevPageBtn.addEventListener('click', async () => {
-  if (state.page <= 1) return;
-  state.page -= 1;
-  await renderContent();
+els.backToList.addEventListener('click', () => {
+  window.location.hash = '#/';
 });
 
-els.nextPageBtn.addEventListener('click', async () => {
-  state.page += 1;
-  await renderContent();
-});
-
-els.refreshContent.addEventListener('click', () => renderContent());
-
-els.requestForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  ensureSignedIn();
-  const fd = new FormData(els.requestForm);
-  await dataApi.createRequest({
-    userId: state.currentUser.uid,
-    type: fd.get('type'),
-    phone: fd.get('phone'),
-    location: fd.get('location'),
-    notes: fd.get('notes'),
-    preferredTime: fd.get('preferredTime')
-  });
-  els.requestForm.reset();
-  await renderRequests();
+window.addEventListener('hashchange', () => {
+  renderRoute();
 });
 
 await dataApi.bootstrap();
-filters.render();
-await refreshAll();
+await refresh();

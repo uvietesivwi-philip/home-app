@@ -9,7 +9,6 @@
   <body>
     <header>
       <h1>Home Help MVP</h1>
-      <p>Cooking, care, DIY, and family support in one app.</p>
       <div class="actions">
         <button id="loginBtn">Sign In Demo User</button>
         <button id="logoutBtn" class="secondary">Sign Out</button>
@@ -18,53 +17,21 @@
 
     <main>
       <section class="card">
-        <h2>Content Filters</h2>
-        <div id="filterMount" class="filters"></div>
-        <pre id="queryPreview" class="query-preview"></pre>
-        <div class="actions">
-          <button id="refreshContent" class="secondary">Refresh</button>
-          <button id="prevPageBtn" class="secondary">Previous</button>
-          <button id="nextPageBtn" class="secondary">Next</button>
-          <span id="pageMeta" class="small"></span>
-        </div>
+        <h2>Content</h2>
         <div id="contentList" class="list"></div>
       </section>
 
-      <section class="card">
-        <h2>Saved Content (<span id="savedCount">0</span>)</h2>
-        <div id="savedList" class="list"></div>
-      </section>
-
-      <section class="card">
-        <h2>Continue Watching</h2>
-        <div id="continueBox" class="list"></div>
-      </section>
-
-      <section class="card">
-        <h2>Request Support (<span id="requestCount">0</span>)</h2>
-        <form id="requestForm">
-          <label>Service type
-            <select name="type" required>
-              <option value="maid">Maid</option>
-              <option value="driver">Driver</option>
-              <option value="escort">Security Escort</option>
-            </select>
-          </label>
-          <label>Contact phone
-            <input type="tel" name="phone" required />
-          </label>
-          <label>Location
-            <input type="text" name="location" required />
-          </label>
-          <label>Preferred time
-            <input type="datetime-local" name="preferredTime" />
-          </label>
-          <label>Request details
-            <textarea name="notes" rows="3"></textarea>
-          </label>
-          <button type="submit">Submit Request</button>
-        </form>
-        <div id="requestList" class="list"></div>
+      <section class="card" id="detailScreen">
+        <div class="actions">
+          <h2>Detail</h2>
+          <button id="backToList" class="secondary">Back</button>
+        </div>
+        <p id="detailState" class="small"></p>
+        <h3 id="detailTitle"></h3>
+        <p id="detailDescription"></p>
+        <div id="detailMedia"></div>
+        <h4>Metadata</h4>
+        <ul id="detailMetadata"></ul>
       </section>
     </main>
 
@@ -74,8 +41,7 @@
         <p class="summary"></p>
         <p class="meta small"></p>
         <div class="actions">
-          <button class="saveBtn">Save</button>
-          <button class="progressBtn secondary">+30s Progress</button>
+          <button class="viewBtn">View details</button>
         </div>
       </article>
     </template>

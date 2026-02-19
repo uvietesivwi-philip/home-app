@@ -1,18 +1,28 @@
 import { authApi, dataApi } from './store.js';
-import { ContentFilters } from './components/content-filters.js';
-import { resolveCategoryQuery } from './categories/query-builders.js';
+
+const taxonomy = {
+  cook: ['african', 'continental'],
+  care: ['bathing', 'dressing', 'hairstyling'],
+  diy: ['decor', 'maintenance'],
+  family: ['parents', 'kids']
+};
 
 const els = {
   loginBtn: document.getElementById('loginBtn'),
   logoutBtn: document.getElementById('logoutBtn'),
+  categoryGrid: document.getElementById('categoryGrid'),
+  subcategoryGrid: document.getElementById('subcategoryGrid'),
+  refreshContent: document.getElementById('refreshContent'),
+  searchInput: document.getElementById('searchInput'),
+  sortSelect: document.getElementById('sortSelect'),
   contentList: document.getElementById('contentList'),
-  detailScreen: document.getElementById('detailScreen'),
-  detailState: document.getElementById('detailState'),
-  detailTitle: document.getElementById('detailTitle'),
-  detailDescription: document.getElementById('detailDescription'),
-  detailMedia: document.getElementById('detailMedia'),
-  detailMetadata: document.getElementById('detailMetadata'),
-  backToList: document.getElementById('backToList'),
+  detailBox: document.getElementById('detailBox'),
+  savedList: document.getElementById('savedList'),
+  continueBox: document.getElementById('continueBox'),
+  requestForm: document.getElementById('requestForm'),
+  requestList: document.getElementById('requestList'),
+  savedCount: document.getElementById('savedCount'),
+  requestCount: document.getElementById('requestCount'),
   tpl: document.getElementById('contentItemTemplate')
 };
 
@@ -21,13 +31,54 @@ const state = {
   rows: []
 };
 
-function escapeHtml(value) {
-  return String(value || '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+function ensureSignedIn() {
+  if (!state.currentUser) throw new Error('Sign in to perform this action.');
+}
+
+function createPill(text, active, onClick) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = `pill ${active ? 'active' : ''}`;
+  btn.textContent = text;
+  btn.addEventListener('click', onClick);
+  return btn;
+}
+
+function textIncludes(row, query) {
+  if (!query) return true;
+  const blob = [row.title, row.summary, row.description, ...(row.tags || [])].join(' ').toLowerCase();
+  return blob.includes(query.toLowerCase());
+}
+
+function sortRows(rows) {
+  const out = [...rows];
+  if (state.sortBy === 'oldest') {
+    out.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  } else if (state.sortBy === 'shortest') {
+    out.sort((a, b) => (a.durationMin || 999) - (b.durationMin || 999));
+  } else {
+    out.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+  return out;
+}
+
+async function getVisibleContent() {
+  const rows = await dataApi.listContent({ category: state.category, subcategory: state.subcategory || undefined });
+  return sortRows(rows.filter((row) => textIncludes(row, state.searchTerm)));
+}
+
+function renderCategoryJourney() {
+  els.categoryGrid.innerHTML = '';
+  Object.keys(taxonomy).forEach((category) => {
+    els.categoryGrid.appendChild(
+      createPill(category.toUpperCase(), state.category === category, async () => {
+        state.category = category;
+        state.subcategory = null;
+        renderSubcategories();
+        await renderContent();
+      })
+    );
+  });
 }
 
 function getRoute() {
@@ -35,9 +86,39 @@ function getRoute() {
   return { contentId: match ? decodeURIComponent(match[1]) : null };
 }
 
-function renderList() {
+function renderDetail(row) {
+  if (!row) {
+    els.detailBox.innerHTML = '<p class="small">Select “View details” on any content item to see richer guidance here.</p>';
+    return;
+  }
+
+  const videoHtml = row.bgVideo
+    ? `<video class="detail-video" autoplay muted loop playsinline><source src="${row.bgVideo}" type="video/mp4" /></video><div class="detail-video-overlay"></div>`
+    : '';
+
+  els.detailBox.innerHTML = `
+    <div class="detail-media">
+      ${videoHtml}
+      <img class="detail-image" src="${row.coverImage || ''}" alt="${row.title} visual" />
+    </div>
+    <h3>${row.title}</h3>
+    <p class="subtle">${row.description || row.summary}</p>
+    <p class="small">Category: <strong>${row.category}/${row.subcategory}</strong> • Type: <strong>${row.type}</strong></p>
+    <p class="small">Audience: <strong>${row.audience || 'general'}</strong> • Duration: <strong>${row.durationMin || '-'} min</strong></p>
+  `;
+}
+
+async function renderContent() {
+  const rows = await getVisibleContent();
   els.contentList.innerHTML = '';
-  state.rows.forEach((row) => {
+
+  if (!rows.length) {
+    els.contentList.innerHTML = '<p class="small">No content matched your current filters. Try another search or category.</p>';
+    renderDetail(null);
+    return;
+  }
+
+  rows.forEach((row) => {
     const node = els.tpl.content.cloneNode(true);
     node.querySelector('.title').textContent = row.title;
     node.querySelector('.summary').textContent = row.summary || row.description || '';
@@ -58,79 +139,109 @@ function showDetailState(message) {
   els.detailMetadata.innerHTML = '';
 }
 
-function renderMetadata(detail) {
-  const metadata = [
-    ['Difficulty', detail.difficulty],
-    ['Duration', detail.durationMin ? `${detail.durationMin} min` : null],
-    ['Language', detail.language]
-  ].filter(([, value]) => Boolean(value));
-
-  if (!metadata.length) {
-    els.detailMetadata.innerHTML = '<li>No metadata available.</li>';
+async function renderSaved() {
+  if (!state.currentUser) {
+    els.savedList.innerHTML = '<p class="small">Sign in to save and review your content list.</p>';
+    els.savedCount.textContent = '0';
     return;
   }
 
-  els.detailMetadata.innerHTML = metadata
-    .map(([label, value]) => `<li><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</li>`)
+  const rows = await dataApi.listSaved(state.currentUser.uid);
+  els.savedCount.textContent = String(rows.length);
+
+  if (!rows.length) {
+    els.savedList.innerHTML = '<p class="small">No saved content yet.</p>';
+    return;
+  }
+
+  els.savedList.innerHTML = rows
+    .map(
+      (row) => `<article class="item"><strong>${row.content.title}</strong><p class="small">${row.content.category}/${row.content.subcategory} • saved ${new Date(row.savedAt).toLocaleString()}</p></article>`
+    )
     .join('');
 }
 
-function renderMedia(detail) {
-  const src = detail.resolvedMediaUrl;
-  if (!src) {
-    els.detailMedia.innerHTML = '<p class="small">Media source is unavailable or invalid.</p>';
+async function renderContinueWatching() {
+  if (!state.currentUser) {
+    els.continueBox.innerHTML = '<p class="small">Sign in to track progress and resume content.</p>';
     return;
   }
 
-  els.detailMedia.innerHTML = `
-    <video controls preload="metadata" width="100%">
-      <source src="${escapeHtml(src)}" type="video/mp4" />
-      Your browser does not support video playback.
-    </video>
+  const row = await dataApi.continueWatching(state.currentUser.uid);
+  if (!row) {
+    els.continueBox.innerHTML = '<p class="small">No progress yet. Tap +30s on content to start tracking.</p>';
+    return;
+  }
+
+  els.continueBox.innerHTML = `<article class="item"><strong>${row.content.title}</strong><p class="small">${row.progress.progressSeconds}s tracked • updated ${new Date(row.progress.updatedAt).toLocaleString()}</p></article>`;
+}
+
+function buildRequestEditor(row) {
+  const item = document.createElement('article');
+  item.className = 'item';
+
+  const locked = row.status !== 'pending';
+  const statusLabel = row.cancelRequested ? `${row.status} (cancel requested)` : row.status;
+
+  item.innerHTML = `
+    <div class="request-top">
+      <strong>${row.type.toUpperCase()} request</strong>
+      <span class="status">${statusLabel}</span>
+    </div>
+    <p class="small">Created ${new Date(row.createdAt).toLocaleString()}</p>
+    <label>Notes
+      <textarea rows="2" ${locked ? 'disabled' : ''}>${row.notes || ''}</textarea>
+    </label>
+    <label class="checkbox-row">
+      <input type="checkbox" ${row.cancelRequested ? 'checked' : ''} ${locked ? 'disabled' : ''} />
+      Request cancellation
+    </label>
+    <button class="secondary" ${locked ? 'disabled' : ''}>Save update</button>
   `;
+
+  const textarea = item.querySelector('textarea');
+  const checkbox = item.querySelector('input[type="checkbox"]');
+  const saveBtn = item.querySelector('button');
+
+  if (!locked) {
+    saveBtn.addEventListener('click', async () => {
+      await dataApi.updateRequestByUser({
+        userId: state.currentUser.uid,
+        requestId: row.id,
+        notes: textarea.value,
+        cancelRequested: checkbox.checked
+      });
+      await renderRequests();
+    });
+  }
+
+  return item;
 }
 
-async function renderDetail(contentId) {
-  if (!contentId) {
-    showDetailState('Select a content item to view details.');
+async function renderRequests() {
+  if (!state.currentUser) {
+    els.requestList.innerHTML = '<p class="small">Sign in to submit and view your request history.</p>';
+    els.requestCount.textContent = '0';
     return;
   }
 
-  showDetailState('Loading content...');
-  try {
-    const detail = await dataApi.getContentById({
-      contentId,
-      userId: state.currentUser?.uid
-    });
+  const rows = await dataApi.listRequests(state.currentUser.uid);
+  els.requestCount.textContent = String(rows.length);
 
-    els.detailState.hidden = true;
-    els.detailTitle.textContent = detail.title || 'Untitled content';
-    els.detailDescription.textContent = detail.description || detail.summary || 'No description available.';
-    renderMedia(detail);
-    renderMetadata(detail);
-  } catch (error) {
-    if (error?.code === 'not-found') {
-      showDetailState('This content is missing or no longer available.');
-      return;
-    }
-    if (error?.code === 'permission-denied') {
-      showDetailState('You do not have permission to view this content. Please sign in.');
-      return;
-    }
-    showDetailState('Unable to load content right now. Please try again.');
+  if (!rows.length) {
+    els.requestList.innerHTML = '<p class="small">No request history yet.</p>';
+    return;
   }
+
+  els.requestList.innerHTML = '';
+  rows.forEach((row) => {
+    els.requestList.appendChild(buildRequestEditor(row));
+  });
 }
 
-async function renderRoute() {
-  const { contentId } = getRoute();
-  await renderDetail(contentId);
-}
-
-async function refresh() {
+async function refreshAll() {
   state.currentUser = authApi.getCurrentUser();
-  state.rows = await dataApi.listContent();
-  renderList();
-  await renderRoute();
+  await Promise.all([renderContent(), renderSaved(), renderContinueWatching(), renderRequests()]);
 }
 
 els.loginBtn.addEventListener('click', async () => {
@@ -147,9 +258,27 @@ els.backToList.addEventListener('click', () => {
   window.location.hash = '#/';
 });
 
-window.addEventListener('hashchange', () => {
-  renderRoute();
+els.sortSelect.addEventListener('change', async (event) => {
+  state.sortBy = event.target.value;
+  await renderContent();
+});
+
+els.refreshContent.addEventListener('click', renderContent);
+
+els.requestForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  ensureSignedIn();
+  const fd = new FormData(els.requestForm);
+  await dataApi.createRequest({
+    userId: state.currentUser.uid,
+    type: fd.get('type'),
+    notes: fd.get('notes')
+  });
+  els.requestForm.reset();
+  await renderRequests();
 });
 
 await dataApi.bootstrap();
-await refresh();
+renderCategoryJourney();
+renderSubcategories();
+await refreshAll();

@@ -31,46 +31,9 @@ function setLS(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-function getProgressDocId(userId, contentId) {
-  return `${userId}_${contentId}`;
-}
-
-function writeProgress({ userId, contentId, progressSeconds, allowRestart = false }) {
-  const progress = getLS(LS_KEYS.progress);
-  const id = getProgressDocId(userId, contentId);
-  const nowIso = new Date().toISOString();
-  const normalizedProgress = Math.max(0, Math.floor(progressSeconds || 0));
-  const index = progress.findIndex((row) => row.id === id || (row.userId === userId && row.contentId === contentId));
-
-  if (index >= 0) {
-    const existing = progress[index];
-    const nextProgress = normalizedProgress;
-
-    if (!allowRestart && nextProgress < existing.progressSeconds) {
-      return { persisted: false, reason: 'regression_blocked', row: existing };
-    }
-
-    progress[index] = {
-      id,
-      userId,
-      contentId,
-      progressSeconds: nextProgress,
-      updatedAt: nowIso
-    };
-    setLS(LS_KEYS.progress, progress);
-    return { persisted: true, reason: 'updated', row: progress[index] };
-  }
-
-  const row = {
-    id,
-    userId,
-    contentId,
-    progressSeconds: normalizedProgress,
-    updatedAt: nowIso
-  };
-  progress.push(row);
-  setLS(LS_KEYS.progress, progress);
-  return { persisted: true, reason: 'created', row };
+function canUserEditRequest(request, updates) {
+  const allowedKeys = ['notes', 'cancelRequested'];
+  return Object.keys(updates).every((key) => allowedKeys.includes(key)) && request.status === 'pending';
 }
 
 export const authApi = {
@@ -259,18 +222,17 @@ export const dataApi = {
     return { state: 'ready', progress, content };
   },
 
-  async createRequest({ userId, type, phone, location, notes, preferredTime }) {
+  async createRequest({ userId, type, notes }) {
     const requests = getLS(LS_KEYS.requests);
     requests.push({
       id: crypto.randomUUID(),
       userId: authenticatedUserId,
       type,
-      phone: phone || null,
-      location: location || null,
-      notes,
-      preferredTime: preferredTime || null,
+      notes: notes || '',
+      cancelRequested: false,
       status: 'pending',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     });
     setLS(LS_KEYS.requests, requests);
   },
@@ -279,14 +241,27 @@ export const dataApi = {
     return sortByDateDesc(getLS(LS_KEYS.requests).filter((x) => x.userId === userId), 'createdAt');
   },
 
-  async updateRequestNotes({ userId, requestId, notes, preferredTime }) {
-    const authenticatedUserId = assertAuthenticatedUser(userId);
+  async updateRequestByUser({ userId, requestId, notes, cancelRequested }) {
     const requests = getLS(LS_KEYS.requests);
-    const row = requests.find((x) => x.id === requestId && x.userId === authenticatedUserId);
-    if (!row) return;
-    row.notes = notes;
-    row.preferredTime = preferredTime || row.preferredTime;
+    const row = requests.find((x) => x.id === requestId && x.userId === userId);
+    if (!row) return { ok: false, reason: 'not_found' };
+
+    const updates = {};
+    if (typeof notes === 'string') updates.notes = notes;
+    if (typeof cancelRequested === 'boolean') updates.cancelRequested = cancelRequested;
+
+    if (!canUserEditRequest(row, updates)) {
+      return { ok: false, reason: 'forbidden_fields_or_state' };
+    }
+
+    Object.assign(row, updates, { updatedAt: new Date().toISOString() });
     setLS(LS_KEYS.requests, requests);
+    return { ok: true };
+  },
+
+  async seedDefaultContent() {
+    const content = await loadDefaultContent();
+    setLS(LS_KEYS.content, content);
   }
 };
 

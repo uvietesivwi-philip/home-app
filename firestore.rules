@@ -5,6 +5,13 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.admin == true
+        || (request.auth.token.roles is list && request.auth.token.roles.hasAny(['admin']))
+      );
+    }
+
     function isSelf(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
@@ -21,18 +28,20 @@ service cloud.firestore {
       return request.resource.data.userId == resource.data.userId;
     }
 
-    // Users can only read/write their own profile document.
     match /users/{userId} {
       allow read, write: if isSelf(userId);
     }
 
-    // App content is readable by signed-in users, write-protected for clients.
-    match /content/{contentId} {
+    match /taxonomy/{docId} {
       allow read: if isSignedIn();
-      allow write: if false;
+      allow write: if isAdmin();
     }
 
-    // User-specific saved items.
+    match /content/{contentId} {
+      allow read: if isSignedIn() && (resource.data.status == 'published' || isAdmin());
+      allow create, update, delete: if isAdmin();
+    }
+
     match /savedContent/{savedId} {
       allow create: if isSignedIn()
                     && ownsNewDoc()
@@ -46,7 +55,6 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // User-specific content progress (resume point, etc.).
     match /contentProgress/{progressId} {
       allow create: if isSignedIn()
                     && ownsNewDoc()
@@ -62,7 +70,6 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Service requests: user can create and manage only their own requests.
     match /requests/{requestId} {
       allow create: if isSignedIn()
                     && ownsNewDoc()

@@ -22,6 +22,41 @@ function setLS(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function normalizeError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+export function resolveStorageUrl(inputPath) {
+  if (!inputPath || typeof inputPath !== 'string') return null;
+  const path = inputPath.trim();
+  if (!path) return null;
+
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+
+  if (path.startsWith('gs://')) {
+    const bucket = APP_CONFIG.FIREBASE.storageBucket;
+    if (!bucket) return null;
+    const withoutScheme = path.replace(/^gs:\/\//, '');
+    const objectPath = withoutScheme.includes('/') ? withoutScheme.split('/').slice(1).join('/') : '';
+    if (!objectPath) return null;
+    return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(objectPath)}?alt=media`;
+  }
+
+  if (path.startsWith('/')) {
+    return `${window.location.origin}${path}`;
+  }
+
+  if (path.startsWith('./') || path.startsWith('../')) {
+    return new URL(path, window.location.href).toString();
+  }
+
+  return null;
+}
+
 export const authApi = {
   async signInDemo() {
     localStorage.setItem('hh_user', JSON.stringify(USER));
@@ -54,6 +89,19 @@ export const dataApi = {
     if (category && category !== 'all') rows = rows.filter((x) => x.category === category);
     if (subcategory && subcategory !== 'all') rows = rows.filter((x) => x.subcategory === subcategory);
     return rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  },
+
+  async getContentById({ contentId, userId }) {
+    const row = getLS(LS_KEYS.content).find((x) => x.id === contentId);
+    if (!row) throw normalizeError('not-found', `content/${contentId} does not exist.`);
+    if (row.requiresAuth && !userId) {
+      throw normalizeError('permission-denied', 'Sign in required to view this content.');
+    }
+
+    return {
+      ...row,
+      resolvedMediaUrl: resolveStorageUrl(row.mediaPath || row.bgVideo || row.coverImage)
+    };
   },
 
   async listSaved(userId) {
@@ -98,7 +146,6 @@ export const dataApi = {
   },
 
   async createRequest({ userId, type, phone, location, notes, preferredTime }) {
-  async createRequest({ userId, type, notes, preferredTime }) {
     const requests = getLS(LS_KEYS.requests);
     requests.push({
       id: crypto.randomUUID(),
@@ -127,10 +174,5 @@ export const dataApi = {
     row.notes = notes;
     row.preferredTime = preferredTime || row.preferredTime;
     setLS(LS_KEYS.requests, requests);
-  },
-
-  async seedDefaultContent() {
-    const content = await loadDefaultContent();
-    setLS(LS_KEYS.content, content);
   }
 };

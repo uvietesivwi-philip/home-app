@@ -42,6 +42,15 @@ To move to production Firebase mode:
 - `MVP_BUILD_TASKS.md`: start-to-finish build checklist.
 
 
+
+## Admin claim operations
+
+Secure admin access management and rollback steps are documented in `ADMIN_ACCESS_RUNBOOK.md`.
+
+- Grant/revoke script: `backend/admin/set-admin-claim.mjs`
+- Callable backend example with claim guard: `backend/functions/admin-claims.js`
+- Firestore rules enforce `request.auth.token.admin` for privileged data operations.
+
 ## Deploy to a live server
 
 Fastest path is Firebase Hosting (this repo includes `firebase.json`).

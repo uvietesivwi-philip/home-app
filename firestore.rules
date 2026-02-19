@@ -9,6 +9,10 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
     function ownsNewDoc() {
       return request.resource.data.userId == request.auth.uid;
     }
@@ -26,10 +30,10 @@ service cloud.firestore {
       allow read, write: if isSelf(userId);
     }
 
-    // App content is readable by signed-in users, write-protected for clients.
+    // App content is readable by signed-in users and writable by admins only.
     match /content/{contentId} {
       allow read: if isSignedIn();
-      allow write: if false;
+      allow create, update, delete: if isAdmin();
     }
 
     // User-specific saved items.
@@ -63,19 +67,23 @@ service cloud.firestore {
     }
 
     // Service requests: user can create and manage only their own requests.
+    // Admins may read/update for operational workflows.
     match /requests/{requestId} {
       allow create: if isSignedIn()
                     && ownsNewDoc()
                     && request.resource.data.type in ["maid", "driver", "escort"]
                     && request.resource.data.status == "pending"
                     && request.resource.data.createdAt is timestamp;
-      allow read: if isSignedIn() && ownsExistingDoc();
+      allow read: if isSignedIn() && (ownsExistingDoc() || isAdmin());
       allow update: if isSignedIn()
-                    && ownsExistingDoc()
-                    && ownerIsImmutable()
-                    && request.resource.data.type == resource.data.type
-                    && request.resource.data.createdAt == resource.data.createdAt
-                    && request.resource.data.status == resource.data.status;
+                    && (
+                      (ownsExistingDoc()
+                        && ownerIsImmutable()
+                        && request.resource.data.type == resource.data.type
+                        && request.resource.data.createdAt == resource.data.createdAt
+                        && request.resource.data.status == resource.data.status)
+                      || isAdmin()
+                    );
       allow delete: if false;
     }
   }

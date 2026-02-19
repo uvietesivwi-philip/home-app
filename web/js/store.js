@@ -5,7 +5,9 @@ const LS_KEYS = {
   content: 'hh_content',
   saved: 'hh_saved',
   progress: 'hh_progress',
-  requests: 'hh_requests'
+  requests: 'hh_requests',
+  user: 'hh_user',
+  claims: 'hh_user_claims'
 };
 
 async function loadDefaultContent() {
@@ -22,17 +24,35 @@ function setLS(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function requireAdminClaim() {
+  const claims = authApi.getCurrentClaims();
+  if (!claims?.admin) {
+    throw new Error('Admin claim required for this operation.');
+  }
+}
+
 export const authApi = {
   async signInDemo() {
-    localStorage.setItem('hh_user', JSON.stringify(USER));
+    setLS(LS_KEYS.user, USER);
+    if (!localStorage.getItem(LS_KEYS.claims)) {
+      setLS(LS_KEYS.claims, { admin: false });
+    }
     return USER;
   },
   async signOut() {
-    localStorage.removeItem('hh_user');
+    localStorage.removeItem(LS_KEYS.user);
+    localStorage.removeItem(LS_KEYS.claims);
   },
   getCurrentUser() {
-    const raw = localStorage.getItem('hh_user');
+    const raw = localStorage.getItem(LS_KEYS.user);
     return raw ? JSON.parse(raw) : null;
+  },
+  getCurrentClaims() {
+    const raw = localStorage.getItem(LS_KEYS.claims);
+    return raw ? JSON.parse(raw) : null;
+  },
+  hasAdminClaim() {
+    return Boolean(authApi.getCurrentClaims()?.admin);
   }
 };
 
@@ -98,7 +118,6 @@ export const dataApi = {
   },
 
   async createRequest({ userId, type, phone, location, notes, preferredTime }) {
-  async createRequest({ userId, type, notes, preferredTime }) {
     const requests = getLS(LS_KEYS.requests);
     requests.push({
       id: crypto.randomUUID(),
@@ -130,6 +149,7 @@ export const dataApi = {
   },
 
   async seedDefaultContent() {
+    requireAdminClaim();
     const content = await loadDefaultContent();
     setLS(LS_KEYS.content, content);
   }

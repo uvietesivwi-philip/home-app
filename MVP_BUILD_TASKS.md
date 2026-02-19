@@ -136,6 +136,11 @@ Current assets already in repo:
 - [ ] Add status transition model handled in trusted backend
 - [ ] Prevent client-side user apps from setting operational statuses
 
+### 6.3 Seed data for launch readiness
+- [ ] Add repeatable seed script for initial content taxonomy
+- [ ] Add repeatable seed script for sample content documents
+- [ ] Run seed in staging and validate browse/filter behavior
+
 **Deliverable:** Non-client workflows exist for content and operations.
 
 ---
@@ -154,10 +159,20 @@ Current assets already in repo:
 - [ ] Support contact and escalation path documented
 
 ### 7.3 Go-live checklist
-- [ ] Rules and indexes deployed to production
+- [ ] Rules deployed
+- [ ] Indexes active
+- [ ] Admin access validated
+- [ ] Analytics/crash reporting verified
+- [ ] Compliance text published (Privacy Policy + Terms)
 - [ ] Emulator tests passing in CI
 - [ ] Rollback plan documented
 - [ ] Pilot cohort selected and monitored
+
+### 7.4 Post-launch verification (first 72 hours)
+- [ ] Error rates remain within expected threshold
+- [ ] Request submission health verified (creation + updates)
+- [ ] Media delivery success rate verified (images/video load)
+- [ ] Authentication success rate verified (login/session continuity)
 
 **Deliverable:** MVP is launchable with operational safeguards.
 

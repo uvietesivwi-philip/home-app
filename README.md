@@ -41,6 +41,20 @@ To move to production Firebase mode:
 - `NEXT_STEPS.md`: implementation checklist after baseline setup.
 - `MVP_BUILD_TASKS.md`: start-to-finish build checklist.
 
+## Seed scripts (taxonomy + sample content)
+
+Use the seed script to bootstrap Firestore with an initial content taxonomy and a starter content library.
+
+```bash
+npm install firebase-admin
+node scripts/seed-initial-content.mjs
+node scripts/seed-initial-content.mjs --apply
+```
+
+- `scripts/seed-data/content-taxonomy.json`: initial category/subcategory taxonomy.
+- `scripts/seed-data/sample-content.json`: initial sample content set.
+- `scripts/seed-initial-content.mjs`: dry-run by default; pass `--apply` to write.
+
 
 ## Deploy to a live server
 

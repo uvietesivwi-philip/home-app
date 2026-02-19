@@ -1,20 +1,12 @@
 export const APP_CONFIG = {
+  // Switch to false after wiring Firebase SDK + project credentials.
+  // Client config only: never place Admin SDK keys/service-account secrets in web envs.
   USE_MOCK_DATA: true,
   FIREBASE: {
     apiKey: '',
     authDomain: '',
     projectId: '',
-    appId: ''
-  },
-  POLICY: {
-    jurisdiction: 'NG',
-    storePolicy: 'store safety policy',
-    disabledRequestTypes: ['escort'],
-    parentalConsentRequiredRegions: ['NG', 'EU', 'UK', 'US']
-  },
-  PRIVACY: {
-    policyUrl: 'https://example.com/privacy',
-    childrenNoticeUrl: 'https://example.com/privacy/children',
-    supportEmail: 'privacy@example.com'
+    appId: '',
+    storageBucket: ''
   }
 };

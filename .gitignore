@@ -1,0 +1,9 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Node dependencies/build output
+node_modules/
+dist/
+coverage/

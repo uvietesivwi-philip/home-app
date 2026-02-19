@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "your-firebase-project-id"
+    "default": "your-dev-project-id",
+    "dev": "your-dev-project-id",
+    "staging": "your-staging-project-id",
+    "prod": "your-prod-project-id"
   }
 }

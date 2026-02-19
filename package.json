@@ -1,15 +1,19 @@
 {
   "name": "home-app",
-  "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "lint": "bash scripts/lint.sh",
-    "typecheck": "bash scripts/typecheck.sh",
-    "test:unit": "node --test tests/unit/**/*.test.js",
-    "test:integration": "node --test tests/integration/**/*.test.js",
-    "test:rules": "node --test tests/rules/**/*.test.js",
-    "build": "bash scripts/build-artifacts.sh",
-    "deploy:staging": "bash scripts/deploy.sh staging",
-    "deploy:prod": "bash scripts/deploy.sh prod"
+    "test": "vitest run",
+    "test:rules": "vitest run tests/firestore.rules.test.js",
+    "test:integration": "vitest run tests/repository.integration.test.js",
+    "test:ci": "npm run test:rules && npm run test:integration",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "@playwright/test": "^1.51.1",
+    "firebase": "^11.3.1",
+    "firebase-tools": "^13.34.0",
+    "vitest": "^3.0.5"
   }
 }

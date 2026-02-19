@@ -1,21 +1,31 @@
+import { APP_CONFIG } from './config.js';
 import { authApi, dataApi } from './store.js';
+import {
+  AGE_CATEGORIES,
+  getAgeCategory,
+  getPolicyContext,
+  isRequestTypeAllowed,
+  requiresParentalConsent,
+  getRestrictionNotice
+} from './policy.js';
 
 const taxonomy = {
   cook: ['african', 'continental'],
   care: ['bathing', 'dressing', 'hairstyling'],
   diy: ['decor', 'maintenance'],
   family: ['parents', 'kids']
-const categories = {
-  all: ['all'],
-  cook: ['all', 'african', 'continental'],
-  care: ['all', 'bathing', 'dressing', 'hairstyling'],
-  diy: ['all', 'decor', 'maintenance'],
-  family: ['all', 'parents', 'kids']
 };
+
+const REQUEST_TYPES = [
+  { value: 'maid', label: 'Maid' },
+  { value: 'driver', label: 'Driver' },
+  { value: 'escort', label: 'Security Escort' }
+];
 
 const els = {
   loginBtn: document.getElementById('loginBtn'),
   logoutBtn: document.getElementById('logoutBtn'),
+  deleteAccountBtn: document.getElementById('deleteAccountBtn'),
   categoryGrid: document.getElementById('categoryGrid'),
   subcategoryGrid: document.getElementById('subcategoryGrid'),
   refreshContent: document.getElementById('refreshContent'),
@@ -23,27 +33,25 @@ const els = {
   sortSelect: document.getElementById('sortSelect'),
   contentList: document.getElementById('contentList'),
   detailBox: document.getElementById('detailBox'),
-  categoryFilter: document.getElementById('categoryFilter'),
-  subcategoryFilter: document.getElementById('subcategoryFilter'),
-  refreshContent: document.getElementById('refreshContent'),
-  contentList: document.getElementById('contentList'),
   savedList: document.getElementById('savedList'),
   continueBox: document.getElementById('continueBox'),
   requestForm: document.getElementById('requestForm'),
+  requestType: document.getElementById('requestType'),
   requestList: document.getElementById('requestList'),
   savedCount: document.getElementById('savedCount'),
   requestCount: document.getElementById('requestCount'),
+  profileBox: document.getElementById('profileBox'),
   tpl: document.getElementById('contentItemTemplate')
 };
 
 const state = {
   currentUser: null,
-  category: 'cook',
-  subcategory: null,
-  searchTerm: '',
-  sortBy: 'newest',
-  selectedContentId: null
+  rows: []
 };
+
+function ensureSignedIn() {
+  if (!state.currentUser) throw new Error('Sign in to perform this action.');
+}
 
 function createPill(text, active, onClick) {
   const btn = document.createElement('button');
@@ -52,10 +60,6 @@ function createPill(text, active, onClick) {
   btn.textContent = text;
   btn.addEventListener('click', onClick);
   return btn;
-}
-
-function ensureSignedIn() {
-  if (!state.currentUser) throw new Error('Sign in to perform this action.');
 }
 
 function textIncludes(row, query) {
@@ -76,8 +80,32 @@ function sortRows(rows) {
   return out;
 }
 
+function refreshPolicyUI() {
+  const ageCategory = getAgeCategory(state.age);
+  els.ageCategoryPill.textContent = `Age category: ${ageCategory.replace('_', ' ')}`;
+
+  const policyNotice = getRestrictionNotice(state.policyContext);
+  els.requestPolicyNotice.textContent = policyNotice || 'All request types are currently enabled.';
+
+  const parentalRequired = requiresParentalConsent(ageCategory, state.policyContext);
+  els.parentalConsentBox.hidden = !parentalRequired;
+  els.policyDisclosure.innerHTML = `
+    Privacy & disclosures: by using request workflows you agree to data handling described in
+    <a href="${APP_CONFIG.PRIVACY.policyUrl}" target="_blank" rel="noreferrer">Privacy Policy</a>
+    and <a href="${APP_CONFIG.PRIVACY.childrenNoticeUrl}" target="_blank" rel="noreferrer">Children's Privacy Notice</a>.
+    Contact <a href="mailto:${APP_CONFIG.PRIVACY.supportEmail}">${APP_CONFIG.PRIVACY.supportEmail}</a> for privacy requests.
+  `;
+
+  els.requestType.innerHTML = REQUEST_TYPES.map((type) => {
+    const disabled = !isRequestTypeAllowed(type.value, state.policyContext);
+    return `<option value="${type.value}" ${disabled ? 'disabled' : ''}>${type.label}${disabled ? ' (Unavailable)' : ''}</option>`;
+  }).join('');
+}
+
 async function getVisibleContent() {
-  const rows = await dataApi.listContent({ category: state.category, subcategory: state.subcategory || undefined });
+  const rows = await withTrace('content_list_trace', () =>
+    dataApi.listContent({ category: state.category, subcategory: state.subcategory || undefined })
+  );
   return sortRows(rows.filter((row) => textIncludes(row, state.searchTerm)));
 }
 
@@ -88,6 +116,7 @@ function renderCategoryJourney() {
       createPill(category.toUpperCase(), state.category === category, async () => {
         state.category = category;
         state.subcategory = null;
+        trackEvent('journey_category_selected', { category });
         renderSubcategories();
         await renderContent();
       })
@@ -95,25 +124,9 @@ function renderCategoryJourney() {
   });
 }
 
-function renderSubcategories() {
-  els.subcategoryGrid.innerHTML = '';
-  const subs = taxonomy[state.category] || [];
-  els.subcategoryGrid.appendChild(
-    createPill('ALL', state.subcategory === null, async () => {
-      state.subcategory = null;
-      renderSubcategories();
-      await renderContent();
-    })
-  );
-  subs.forEach((sub) => {
-    els.subcategoryGrid.appendChild(
-      createPill(sub, state.subcategory === sub, async () => {
-        state.subcategory = sub;
-        renderSubcategories();
-        await renderContent();
-      })
-    );
-  });
+function getRoute() {
+  const match = window.location.hash.match(/^#\/content\/([^/?#]+)/);
+  return { contentId: match ? decodeURIComponent(match[1]) : null };
 }
 
 function renderDetail(row) {
@@ -121,9 +134,11 @@ function renderDetail(row) {
     els.detailBox.innerHTML = '<p class="small">Select “View details” on any content item to see richer guidance here.</p>';
     return;
   }
+
   const videoHtml = row.bgVideo
     ? `<video class="detail-video" autoplay muted loop playsinline><source src="${row.bgVideo}" type="video/mp4" /></video><div class="detail-video-overlay"></div>`
     : '';
+
   els.detailBox.innerHTML = `
     <div class="detail-media">
       ${videoHtml}
@@ -133,13 +148,13 @@ function renderDetail(row) {
     <p class="subtle">${row.description || row.summary}</p>
     <p class="small">Category: <strong>${row.category}/${row.subcategory}</strong> • Type: <strong>${row.type}</strong></p>
     <p class="small">Audience: <strong>${row.audience || 'general'}</strong> • Duration: <strong>${row.durationMin || '-'} min</strong></p>
-    <div class="chip-row">${(row.tags || []).map((tag) => `<span class="chip">#${tag}</span>`).join('')}</div>
   `;
 }
 
 async function renderContent() {
   const rows = await getVisibleContent();
   els.contentList.innerHTML = '';
+
   if (!rows.length) {
     els.contentList.innerHTML = '<p class="small">No content matched your current filters. Try another search or category.</p>';
     renderDetail(null);
@@ -148,39 +163,23 @@ async function renderContent() {
 
   rows.forEach((row) => {
     const node = els.tpl.content.cloneNode(true);
-    node.querySelector('.meta').textContent = `${row.category}/${row.subcategory}`;
-    node.querySelector('.cover').src = row.coverImage || 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80';
-    node.querySelector('.cover').alt = `${row.title} cover image`;
-    node.querySelector('.media-chip').textContent = row.type.toUpperCase();
-    node.querySelector('.audience').textContent = row.audience || 'general';
     node.querySelector('.title').textContent = row.title;
-    node.querySelector('.summary').textContent = row.summary;
-    node.querySelector('.details').textContent = `${row.type.toUpperCase()} • ${row.durationMin || '-'} min`;
-    node.querySelector('.tags').innerHTML = (row.tags || []).map((tag) => `<span class="chip">${tag}</span>`).join('');
-
+    node.querySelector('.summary').textContent = row.summary || row.description || '';
+    node.querySelector('.meta').textContent = `${row.category}/${row.subcategory}`;
     node.querySelector('.viewBtn').addEventListener('click', () => {
-      state.selectedContentId = row.id;
-      renderDetail(row);
+      window.location.hash = `#/content/${encodeURIComponent(row.id)}`;
     });
-
-    node.querySelector('.saveBtn').addEventListener('click', async () => {
-      ensureSignedIn();
-      await dataApi.saveContent({ userId: state.currentUser.uid, contentId: row.id });
-      await renderSaved();
-    });
-
-    node.querySelector('.progressBtn').addEventListener('click', async () => {
-      ensureSignedIn();
-      await dataApi.addProgress({ userId: state.currentUser.uid, contentId: row.id, deltaSeconds: 30 });
-      await renderContinueWatching();
-    });
-
     els.contentList.appendChild(node);
   });
+}
 
-  const selected = rows.find((x) => x.id === state.selectedContentId) || rows[0];
-  state.selectedContentId = selected.id;
-  renderDetail(selected);
+function showDetailState(message) {
+  els.detailState.textContent = message;
+  els.detailState.hidden = false;
+  els.detailTitle.textContent = '';
+  els.detailDescription.textContent = '';
+  els.detailMedia.innerHTML = '';
+  els.detailMetadata.innerHTML = '';
 }
 
 async function renderSaved() {
@@ -189,51 +188,50 @@ async function renderSaved() {
     els.savedCount.textContent = '0';
     return;
   }
+
   const rows = await dataApi.listSaved(state.currentUser.uid);
   els.savedCount.textContent = String(rows.length);
+
   if (!rows.length) {
-    els.savedList.innerHTML = '<p class="small">No saved content yet. Save useful guides to build your routine.</p>';
+    els.savedList.innerHTML = '<p class="small">No saved content yet.</p>';
     return;
   }
-  els.savedList.innerHTML = rows
-    .map(
-      (row) => `
-      <article class="item">
+
+  els.savedList.innerHTML = '';
+  rows.forEach((row) => {
+    const item = document.createElement('article');
+    item.className = 'item';
+
+    if (row.isOrphaned) {
+      item.innerHTML = `
+        <strong>Unavailable content</strong>
+        <p class="small">This saved entry references deleted content (${row.contentId}).</p>
+        <button class="secondary remove-orphan">Remove entry</button>
+      `;
+      item.querySelector('.remove-orphan').addEventListener('click', async () => {
+        await dataApi.removeSaved({ userId: state.currentUser.uid, savedId: row.id });
+        await renderSaved();
+      });
+    } else {
+      item.innerHTML = `
         <strong>${row.content.title}</strong>
         <p class="small">${row.content.category}/${row.content.subcategory} • saved ${new Date(row.savedAt).toLocaleString()}</p>
-      </article>`
-    )
-    .join('');
+      `;
+    }
+
+    els.savedList.appendChild(item);
+  });
 }
 
 async function renderContinueWatching() {
   if (!state.currentUser) {
-    els.continueBox.innerHTML = '<p class="small">Sign in to track progress and resume content.</p>';
+    els.continueBox.innerHTML = '<p class="small">Sign in to track progress.</p>';
     return;
   }
+
   const row = await dataApi.continueWatching(state.currentUser.uid);
   if (!row) {
-    els.continueBox.innerHTML = '<p class="small">No progress yet. Tap +30s on any content to start tracking.</p>';
-    return;
-  }
-  els.continueBox.innerHTML = `
-    <article class="item">
-      <strong>${row.content.title}</strong>
-      <p class="small">${row.progress.progressSeconds}s tracked • updated ${new Date(row.progress.updatedAt).toLocaleString()}</p>
-    </article>
-  `;
-}
-
-async function renderRequests() {
-  if (!state.currentUser) {
-    els.requestList.innerHTML = '<p class="small">Sign in to submit and manage requests.</p>';
-    els.requestCount.textContent = '0';
-    return;
-  }
-  const rows = await dataApi.listRequests(state.currentUser.uid);
-  els.requestCount.textContent = String(rows.length);
-  if (!rows.length) {
-    els.requestList.innerHTML = '<p class="small">No requests yet. Submit a service request when you need support.</p>';
+    els.continueBox.innerHTML = '<p class="small">No progress yet. Tap +30s on content to start tracking.</p>';
     return;
   }
 
@@ -249,166 +247,100 @@ async function renderRequests() {
       <p class="small">Phone: ${row.phone || '-'} • Location: ${row.location || '-'}</p>
       <p>${row.notes || '(no notes)'}</p>
       <p class="small">Created ${new Date(row.createdAt).toLocaleString()}</p>
-  tpl: document.getElementById('contentItemTemplate')
-};
-
-let currentUser = null;
-
-function renderCategories() {
-  els.categoryGrid.innerHTML = '';
-  Object.keys(categories).filter((x) => x !== 'all').forEach((category) => {
-    const div = document.createElement('div');
-    div.className = 'badge';
-    div.textContent = `${category.toUpperCase()} • ${categories[category].length - 1} tracks`;
-    els.categoryGrid.appendChild(div);
-  });
-}
-
-function hydrateFilters() {
-  els.categoryFilter.innerHTML = Object.keys(categories)
-    .map((c) => `<option value="${c}">${c}</option>`)
-    .join('');
-  fillSubcategories('all');
-}
-
-function fillSubcategories(category) {
-  const options = categories[category] || ['all'];
-  els.subcategoryFilter.innerHTML = options.map((s) => `<option value="${s}">${s}</option>`).join('');
-}
-
-function mustAuth() {
-  if (!currentUser) throw new Error('Sign in first.');
-}
-
-async function renderContent() {
-  const category = els.categoryFilter.value;
-  const subcategory = els.subcategoryFilter.value;
-  const rows = await dataApi.listContent({
-    category: category === 'all' ? undefined : category,
-    subcategory: subcategory === 'all' ? undefined : subcategory
-  });
-  els.contentList.innerHTML = '';
-  rows.forEach((row) => {
-    const node = els.tpl.content.cloneNode(true);
-    node.querySelector('.title').textContent = row.title;
-    node.querySelector('.summary').textContent = row.summary;
-    node.querySelector('.meta').textContent = `${row.category}/${row.subcategory} • ${row.type}`;
-    node.querySelector('.saveBtn').addEventListener('click', async () => {
-      mustAuth();
-      await dataApi.saveContent({ userId: currentUser.uid, contentId: row.id });
-      await renderSaved();
-    });
-    node.querySelector('.progressBtn').addEventListener('click', async () => {
-      mustAuth();
-      await dataApi.addProgress({ userId: currentUser.uid, contentId: row.id, deltaSeconds: 30 });
-      await renderContinueWatching();
-    });
-    els.contentList.appendChild(node);
-  });
-}
-
-async function renderSaved() {
-  els.savedList.innerHTML = '';
-  if (!currentUser) {
-    els.savedList.innerHTML = '<p class="small">Sign in to see saved content.</p>';
-    return;
-  }
-  const rows = await dataApi.listSaved(currentUser.uid);
-  if (!rows.length) {
-    els.savedList.innerHTML = '<p class="small">No saved content yet.</p>';
-    return;
-  }
-  rows.forEach((row) => {
-    const div = document.createElement('div');
-    div.className = 'item';
-    div.innerHTML = `<strong>${row.content.title}</strong><div class="small">Saved ${new Date(row.savedAt).toLocaleString()}</div>`;
-    els.savedList.appendChild(div);
-  });
-}
-
-async function renderContinueWatching() {
-  els.continueBox.innerHTML = '';
-  if (!currentUser) {
-    els.continueBox.innerHTML = '<p class="small">Sign in to track progress.</p>';
-    return;
-  }
-  const cw = await dataApi.continueWatching(currentUser.uid);
-  if (!cw) {
-    els.continueBox.innerHTML = '<p class="small">No progress tracked yet.</p>';
-    return;
-  }
-  const div = document.createElement('div');
-  div.className = 'item';
-  div.innerHTML = `<strong>${cw.content.title}</strong><div class="small">Progress: ${cw.progress.progressSeconds}s</div>`;
-  els.continueBox.appendChild(div);
-}
-
-async function renderRequests() {
-  els.requestList.innerHTML = '';
-  if (!currentUser) {
-    els.requestList.innerHTML = '<p class="small">Sign in to submit and view requests.</p>';
-    return;
-  }
-  const rows = await dataApi.listRequests(currentUser.uid);
-  if (!rows.length) {
-    els.requestList.innerHTML = '<p class="small">No requests yet.</p>';
-    return;
-  }
-  rows.forEach((row) => {
-    const div = document.createElement('div');
-    div.className = 'item';
-    div.innerHTML = `
-      <strong>${row.type.toUpperCase()} • ${row.status}</strong>
-      <p>${row.notes || '(no notes)'}</p>
-      <p class="small">${new Date(row.createdAt).toLocaleString()}</p>
       <label>Update notes
         <textarea rows="2">${row.notes || ''}</textarea>
       </label>
       <button class="secondary">Save Notes</button>
     `;
+
     const textarea = item.querySelector('textarea');
     item.querySelector('button').addEventListener('click', async () => {
       await dataApi.updateRequestNotes({
         userId: state.currentUser.uid,
-    const textarea = div.querySelector('textarea');
-    div.querySelector('button').addEventListener('click', async () => {
-      await dataApi.updateRequestNotes({
-        userId: currentUser.uid,
         requestId: row.id,
         notes: textarea.value,
         preferredTime: row.preferredTime
       });
       await renderRequests();
     });
+
     els.requestList.appendChild(item);
-    els.requestList.appendChild(div);
   });
+}
+
+async function renderProfile() {
+  if (!state.currentUser) {
+    els.profileBox.innerHTML = '<p class="small">Sign in to load your profile from <code>users/{uid}</code>.</p>';
+    return;
+  }
+
+  const profile = await dataApi.getUserProfile(state.currentUser.uid);
+  if (!profile) {
+    els.profileBox.innerHTML = '<p class="small">Profile document not found.</p>';
+    return;
+  }
+
+  els.profileBox.innerHTML = `
+    <article class="item">
+      <strong>${profile.fullName}</strong>
+      <p class="small">UID: ${profile.uid}</p>
+      <p class="small">${profile.email} • ${profile.plan}</p>
+      <p class="small">Status: ${profile.status}</p>
+      <p class="small">Joined ${new Date(profile.createdAt).toLocaleString()}</p>
+    </article>
+  `;
 }
 
 async function refreshAll() {
   state.currentUser = authApi.getCurrentUser();
-  currentUser = authApi.getCurrentUser();
-  await Promise.all([renderContent(), renderSaved(), renderContinueWatching(), renderRequests()]);
+  await Promise.all([renderProfile(), renderContent(), renderSaved(), renderContinueWatching(), renderRequests()]);
 }
 
 els.loginBtn.addEventListener('click', async () => {
   await authApi.signInDemo();
-  await refreshAll();
+  await refresh();
 });
 
 els.logoutBtn.addEventListener('click', async () => {
+  await authApi.signOut();
+  await refresh();
+});
+
+els.deleteAccountBtn.addEventListener('click', async () => {
+  ensureSignedIn();
+  const approved = window.confirm('Submit account deletion + data erase request and sign out?');
+  if (!approved) return;
+  await dataApi.requestAccountDeletion({ userId: state.currentUser.uid, reason: 'privacy_compliance_request' });
   await authApi.signOut();
   await refreshAll();
 });
 
 els.searchInput.addEventListener('input', async (event) => {
   state.searchTerm = event.target.value;
+  trackEvent('journey_search_used', { search_length: state.searchTerm.length, category: state.category });
   await renderContent();
 });
 
 els.sortSelect.addEventListener('change', async (event) => {
   state.sortBy = event.target.value;
+  trackEvent('journey_sort_changed', { sort_by: state.sortBy });
   await renderContent();
+});
+
+els.ageInput.addEventListener('input', () => {
+  state.age = Number(els.ageInput.value || 0);
+  refreshPolicyUI();
+});
+
+els.consentBtn.addEventListener('click', async () => {
+  ensureSignedIn();
+  await dataApi.createParentalConsentPlaceholder({
+    userId: state.currentUser.uid,
+    childAge: state.age,
+    jurisdiction: state.policyContext.jurisdiction
+  });
+  els.parentalConsentBox.querySelector('.small').textContent =
+    'Parental consent placeholder created. Verification flow to be integrated with KYC provider.';
 });
 
 els.refreshContent.addEventListener('click', renderContent);
@@ -416,35 +348,31 @@ els.refreshContent.addEventListener('click', renderContent);
 els.requestForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   ensureSignedIn();
+
+  const ageCategory = getAgeCategory(state.age);
+  if (requiresParentalConsent(ageCategory, state.policyContext)) {
+    throw new Error('Parental consent is required for under-13 users in this region before request submission.');
+  }
+
   const fd = new FormData(els.requestForm);
   await dataApi.createRequest({
     userId: state.currentUser.uid,
     type: fd.get('type'),
     phone: fd.get('phone'),
     location: fd.get('location'),
-els.categoryFilter.addEventListener('change', async (e) => {
-  fillSubcategories(e.target.value);
-  await renderContent();
-});
-els.subcategoryFilter.addEventListener('change', renderContent);
-els.refreshContent.addEventListener('click', renderContent);
-els.requestForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  mustAuth();
-  const fd = new FormData(els.requestForm);
-  await dataApi.createRequest({
-    userId: currentUser.uid,
-    type: fd.get('type'),
     notes: fd.get('notes'),
-    preferredTime: fd.get('preferredTime')
+    preferredTime: fd.get('preferredTime'),
+    ageCategory,
+    policyContext: state.policyContext
   });
   els.requestForm.reset();
+  refreshPolicyUI();
   await renderRequests();
 });
 
+await initObservability();
 await dataApi.bootstrap();
 renderCategoryJourney();
 renderSubcategories();
-renderCategories();
-hydrateFilters();
 await refreshAll();
+trackEvent('screen_view', { screen_name: 'home' });

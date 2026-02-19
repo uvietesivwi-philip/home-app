@@ -1,0 +1,71 @@
+{
+  "projects": {
+    "default": "home-app-dev",
+    "dev": "home-app-dev",
+    "staging": "home-app-staging",
+    "prod": "home-app-prod"
+  },
+  "targets": {
+    "home-app-dev": {
+      "firestore": {
+        "app": [
+          "(default)"
+        ]
+      },
+      "hosting": {
+        "web": [
+          "home-app-web-dev"
+        ],
+        "admin": [
+          "home-app-admin-dev"
+        ]
+      },
+      "storage": {
+        "app": [
+          "home-app-dev.appspot.com"
+        ]
+      }
+    },
+    "home-app-staging": {
+      "firestore": {
+        "app": [
+          "(default)"
+        ]
+      },
+      "hosting": {
+        "web": [
+          "home-app-web-staging"
+        ],
+        "admin": [
+          "home-app-admin-staging"
+        ]
+      },
+      "storage": {
+        "app": [
+          "home-app-staging.appspot.com"
+        ]
+      }
+    },
+    "home-app-prod": {
+      "firestore": {
+        "app": [
+          "(default)"
+        ]
+      },
+      "hosting": {
+        "web": [
+          "home-app-web-prod"
+        ],
+        "admin": [
+          "home-app-admin-prod"
+        ]
+      },
+      "storage": {
+        "app": [
+          "home-app-prod.appspot.com"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

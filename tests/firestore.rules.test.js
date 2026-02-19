@@ -14,9 +14,7 @@ beforeAll(async () => {
   testEnv = await initializeTestEnvironment({
     projectId,
     firestore: {
-      rules: fs.readFileSync('firestore.rules', 'utf8'),
-      host: '127.0.0.1',
-      port: 8080
+      rules: fs.readFileSync('firestore.rules', 'utf8')
     }
   });
 });
@@ -78,6 +76,7 @@ describe('firestore security rules', () => {
       await setDoc(doc(context.firestore(), 'content/content-1'), {
         title: 'Demo content',
         category: 'cook',
+        status: 'published',
         createdAt: new Date()
       });
     });

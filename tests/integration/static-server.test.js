@@ -1,6 +1,6 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const { spawn } = require('node:child_process');
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));

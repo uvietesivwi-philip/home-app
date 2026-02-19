@@ -16,15 +16,11 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
-    }
-
-    function ownsNewDoc() {
+    function isOwnerCreate() {
       return request.resource.data.userId == request.auth.uid;
     }
 
-    function ownsExistingDoc() {
+    function isOwnerExisting() {
       return resource.data.userId == request.auth.uid;
     }
 
@@ -76,7 +72,8 @@ service cloud.firestore {
                       "userId",
                       "type",
                       "status",
-                      "createdAt"
+                      "createdAt",
+                      "notes"
                     ])
                     && request.resource.data.type in ["maid", "driver", "escort"]
                     && request.resource.data.status == "pending"

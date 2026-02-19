@@ -22,6 +22,11 @@ function setLS(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function canUserEditRequest(request, updates) {
+  const allowedKeys = ['notes', 'cancelRequested'];
+  return Object.keys(updates).every((key) => allowedKeys.includes(key)) && request.status === 'pending';
+}
+
 export const authApi = {
   async signInDemo() {
     localStorage.setItem('hh_user', JSON.stringify(USER));
@@ -97,19 +102,17 @@ export const dataApi = {
     return content ? { progress: progress[0], content } : null;
   },
 
-  async createRequest({ userId, type, phone, location, notes, preferredTime }) {
-  async createRequest({ userId, type, notes, preferredTime }) {
+  async createRequest({ userId, type, notes }) {
     const requests = getLS(LS_KEYS.requests);
     requests.push({
       id: crypto.randomUUID(),
       userId,
       type,
-      phone: phone || null,
-      location: location || null,
-      notes,
-      preferredTime: preferredTime || null,
+      notes: notes || '',
+      cancelRequested: false,
       status: 'pending',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     });
     setLS(LS_KEYS.requests, requests);
   },
@@ -120,13 +123,22 @@ export const dataApi = {
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   },
 
-  async updateRequestNotes({ userId, requestId, notes, preferredTime }) {
+  async updateRequestByUser({ userId, requestId, notes, cancelRequested }) {
     const requests = getLS(LS_KEYS.requests);
     const row = requests.find((x) => x.id === requestId && x.userId === userId);
-    if (!row) return;
-    row.notes = notes;
-    row.preferredTime = preferredTime || row.preferredTime;
+    if (!row) return { ok: false, reason: 'not_found' };
+
+    const updates = {};
+    if (typeof notes === 'string') updates.notes = notes;
+    if (typeof cancelRequested === 'boolean') updates.cancelRequested = cancelRequested;
+
+    if (!canUserEditRequest(row, updates)) {
+      return { ok: false, reason: 'forbidden_fields_or_state' };
+    }
+
+    Object.assign(row, updates, { updatedAt: new Date().toISOString() });
     setLS(LS_KEYS.requests, requests);
+    return { ok: true };
   },
 
   async seedDefaultContent() {

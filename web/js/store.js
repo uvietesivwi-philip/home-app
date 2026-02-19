@@ -22,6 +22,10 @@ function setLS(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function sortByNewest(rows) {
+  return [...rows].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
 export const authApi = {
   async signInDemo() {
     localStorage.setItem('hh_user', JSON.stringify(USER));
@@ -49,11 +53,23 @@ export const dataApi = {
     if (!localStorage.getItem(LS_KEYS.requests)) setLS(LS_KEYS.requests, []);
   },
 
-  async listContent({ category, subcategory } = {}) {
+  async listContent({ category, subcategory, type, limit = 6, page = 1 } = {}) {
     let rows = getLS(LS_KEYS.content);
     if (category && category !== 'all') rows = rows.filter((x) => x.category === category);
     if (subcategory && subcategory !== 'all') rows = rows.filter((x) => x.subcategory === subcategory);
-    return rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    if (type && type !== 'all') rows = rows.filter((x) => x.type === type);
+
+    rows = sortByNewest(rows);
+    const start = (page - 1) * limit;
+    const paged = rows.slice(start, start + limit);
+
+    return {
+      rows: paged,
+      total: rows.length,
+      page,
+      limit,
+      hasMore: start + limit < rows.length
+    };
   },
 
   async listSaved(userId) {
@@ -98,7 +114,6 @@ export const dataApi = {
   },
 
   async createRequest({ userId, type, phone, location, notes, preferredTime }) {
-  async createRequest({ userId, type, notes, preferredTime }) {
     const requests = getLS(LS_KEYS.requests);
     requests.push({
       id: crypto.randomUUID(),
@@ -127,10 +142,5 @@ export const dataApi = {
     row.notes = notes;
     row.preferredTime = preferredTime || row.preferredTime;
     setLS(LS_KEYS.requests, requests);
-  },
-
-  async seedDefaultContent() {
-    const content = await loadDefaultContent();
-    setLS(LS_KEYS.content, content);
   }
 };

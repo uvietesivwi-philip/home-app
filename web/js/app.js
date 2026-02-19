@@ -1,32 +1,19 @@
 import { authApi, dataApi } from './store.js';
+import { ContentFilters } from './components/content-filters.js';
+import { resolveCategoryQuery } from './categories/query-builders.js';
 
-const taxonomy = {
-  cook: ['african', 'continental'],
-  care: ['bathing', 'dressing', 'hairstyling'],
-  diy: ['decor', 'maintenance'],
-  family: ['parents', 'kids']
-const categories = {
-  all: ['all'],
-  cook: ['all', 'african', 'continental'],
-  care: ['all', 'bathing', 'dressing', 'hairstyling'],
-  diy: ['all', 'decor', 'maintenance'],
-  family: ['all', 'parents', 'kids']
-};
+const PAGE_SIZE = 4;
 
 const els = {
   loginBtn: document.getElementById('loginBtn'),
   logoutBtn: document.getElementById('logoutBtn'),
-  categoryGrid: document.getElementById('categoryGrid'),
-  subcategoryGrid: document.getElementById('subcategoryGrid'),
-  refreshContent: document.getElementById('refreshContent'),
-  searchInput: document.getElementById('searchInput'),
-  sortSelect: document.getElementById('sortSelect'),
+  filterMount: document.getElementById('filterMount'),
+  queryPreview: document.getElementById('queryPreview'),
   contentList: document.getElementById('contentList'),
-  detailBox: document.getElementById('detailBox'),
-  categoryFilter: document.getElementById('categoryFilter'),
-  subcategoryFilter: document.getElementById('subcategoryFilter'),
+  prevPageBtn: document.getElementById('prevPageBtn'),
+  nextPageBtn: document.getElementById('nextPageBtn'),
+  pageMeta: document.getElementById('pageMeta'),
   refreshContent: document.getElementById('refreshContent'),
-  contentList: document.getElementById('contentList'),
   savedList: document.getElementById('savedList'),
   continueBox: document.getElementById('continueBox'),
   requestForm: document.getElementById('requestForm'),
@@ -38,130 +25,48 @@ const els = {
 
 const state = {
   currentUser: null,
-  category: 'cook',
-  subcategory: null,
-  searchTerm: '',
-  sortBy: 'newest',
-  selectedContentId: null
+  filters: { category: 'all', subcategory: 'all', type: 'all' },
+  page: 1
 };
 
-function createPill(text, active, onClick) {
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = `pill ${active ? 'active' : ''}`;
-  btn.textContent = text;
-  btn.addEventListener('click', onClick);
-  return btn;
-}
+const filters = new ContentFilters({
+  root: els.filterMount,
+  onChange(nextFilters) {
+    state.filters = nextFilters;
+    state.page = 1;
+    renderContent();
+  }
+});
 
 function ensureSignedIn() {
-  if (!state.currentUser) throw new Error('Sign in to perform this action.');
+  if (!state.currentUser) throw new Error('Sign in first.');
 }
 
-function textIncludes(row, query) {
-  if (!query) return true;
-  const blob = [row.title, row.summary, row.description, ...(row.tags || [])].join(' ').toLowerCase();
-  return blob.includes(query.toLowerCase());
-}
-
-function sortRows(rows) {
-  const out = [...rows];
-  if (state.sortBy === 'oldest') {
-    out.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-  } else if (state.sortBy === 'shortest') {
-    out.sort((a, b) => (a.durationMin || 999) - (b.durationMin || 999));
-  } else {
-    out.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }
-  return out;
-}
-
-async function getVisibleContent() {
-  const rows = await dataApi.listContent({ category: state.category, subcategory: state.subcategory || undefined });
-  return sortRows(rows.filter((row) => textIncludes(row, state.searchTerm)));
-}
-
-function renderCategoryJourney() {
-  els.categoryGrid.innerHTML = '';
-  Object.keys(taxonomy).forEach((category) => {
-    els.categoryGrid.appendChild(
-      createPill(category.toUpperCase(), state.category === category, async () => {
-        state.category = category;
-        state.subcategory = null;
-        renderSubcategories();
-        await renderContent();
-      })
-    );
-  });
-}
-
-function renderSubcategories() {
-  els.subcategoryGrid.innerHTML = '';
-  const subs = taxonomy[state.category] || [];
-  els.subcategoryGrid.appendChild(
-    createPill('ALL', state.subcategory === null, async () => {
-      state.subcategory = null;
-      renderSubcategories();
-      await renderContent();
-    })
-  );
-  subs.forEach((sub) => {
-    els.subcategoryGrid.appendChild(
-      createPill(sub, state.subcategory === sub, async () => {
-        state.subcategory = sub;
-        renderSubcategories();
-        await renderContent();
-      })
-    );
-  });
-}
-
-function renderDetail(row) {
-  if (!row) {
-    els.detailBox.innerHTML = '<p class="small">Select “View details” on any content item to see richer guidance here.</p>';
-    return;
-  }
-  const videoHtml = row.bgVideo
-    ? `<video class="detail-video" autoplay muted loop playsinline><source src="${row.bgVideo}" type="video/mp4" /></video><div class="detail-video-overlay"></div>`
-    : '';
-  els.detailBox.innerHTML = `
-    <div class="detail-media">
-      ${videoHtml}
-      <img class="detail-image" src="${row.coverImage || ''}" alt="${row.title} visual" />
-    </div>
-    <h3>${row.title}</h3>
-    <p class="subtle">${row.description || row.summary}</p>
-    <p class="small">Category: <strong>${row.category}/${row.subcategory}</strong> • Type: <strong>${row.type}</strong></p>
-    <p class="small">Audience: <strong>${row.audience || 'general'}</strong> • Duration: <strong>${row.durationMin || '-'} min</strong></p>
-    <div class="chip-row">${(row.tags || []).map((tag) => `<span class="chip">#${tag}</span>`).join('')}</div>
-  `;
+function renderQueryPreview() {
+  const query = resolveCategoryQuery(state.filters);
+  els.queryPreview.textContent = JSON.stringify(query, null, 2);
 }
 
 async function renderContent() {
-  const rows = await getVisibleContent();
+  renderQueryPreview();
+
+  const result = await dataApi.listContent({
+    ...state.filters,
+    page: state.page,
+    limit: PAGE_SIZE
+  });
+
   els.contentList.innerHTML = '';
-  if (!rows.length) {
-    els.contentList.innerHTML = '<p class="small">No content matched your current filters. Try another search or category.</p>';
-    renderDetail(null);
-    return;
+
+  if (!result.rows.length) {
+    els.contentList.innerHTML = '<p class="small">No content matched this filter set.</p>';
   }
 
-  rows.forEach((row) => {
+  result.rows.forEach((row) => {
     const node = els.tpl.content.cloneNode(true);
-    node.querySelector('.meta').textContent = `${row.category}/${row.subcategory}`;
-    node.querySelector('.cover').src = row.coverImage || 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80';
-    node.querySelector('.cover').alt = `${row.title} cover image`;
-    node.querySelector('.media-chip').textContent = row.type.toUpperCase();
-    node.querySelector('.audience').textContent = row.audience || 'general';
     node.querySelector('.title').textContent = row.title;
     node.querySelector('.summary').textContent = row.summary;
-    node.querySelector('.details').textContent = `${row.type.toUpperCase()} • ${row.durationMin || '-'} min`;
-    node.querySelector('.tags').innerHTML = (row.tags || []).map((tag) => `<span class="chip">${tag}</span>`).join('');
-
-    node.querySelector('.viewBtn').addEventListener('click', () => {
-      state.selectedContentId = row.id;
-      renderDetail(row);
-    });
+    node.querySelector('.meta').textContent = `${row.category}/${row.subcategory} • ${row.type}`;
 
     node.querySelector('.saveBtn').addEventListener('click', async () => {
       ensureSignedIn();
@@ -178,216 +83,54 @@ async function renderContent() {
     els.contentList.appendChild(node);
   });
 
-  const selected = rows.find((x) => x.id === state.selectedContentId) || rows[0];
-  state.selectedContentId = selected.id;
-  renderDetail(selected);
+  const totalPages = Math.max(1, Math.ceil(result.total / result.limit));
+  els.pageMeta.textContent = `Page ${state.page} of ${totalPages} (${result.total} items)`;
+  els.prevPageBtn.disabled = state.page <= 1;
+  els.nextPageBtn.disabled = !result.hasMore;
 }
 
 async function renderSaved() {
   if (!state.currentUser) {
-    els.savedList.innerHTML = '<p class="small">Sign in to save and review your content list.</p>';
+    els.savedList.innerHTML = '<p class="small">Sign in to see saved content.</p>';
     els.savedCount.textContent = '0';
     return;
   }
+
   const rows = await dataApi.listSaved(state.currentUser.uid);
   els.savedCount.textContent = String(rows.length);
-  if (!rows.length) {
-    els.savedList.innerHTML = '<p class="small">No saved content yet. Save useful guides to build your routine.</p>';
-    return;
-  }
-  els.savedList.innerHTML = rows
-    .map(
-      (row) => `
-      <article class="item">
-        <strong>${row.content.title}</strong>
-        <p class="small">${row.content.category}/${row.content.subcategory} • saved ${new Date(row.savedAt).toLocaleString()}</p>
-      </article>`
-    )
-    .join('');
+  els.savedList.innerHTML = rows.length
+    ? rows.map((row) => `<article class="item"><strong>${row.content.title}</strong></article>`).join('')
+    : '<p class="small">No saved content yet.</p>';
 }
 
 async function renderContinueWatching() {
   if (!state.currentUser) {
-    els.continueBox.innerHTML = '<p class="small">Sign in to track progress and resume content.</p>';
-    return;
-  }
-  const row = await dataApi.continueWatching(state.currentUser.uid);
-  if (!row) {
-    els.continueBox.innerHTML = '<p class="small">No progress yet. Tap +30s on any content to start tracking.</p>';
-    return;
-  }
-  els.continueBox.innerHTML = `
-    <article class="item">
-      <strong>${row.content.title}</strong>
-      <p class="small">${row.progress.progressSeconds}s tracked • updated ${new Date(row.progress.updatedAt).toLocaleString()}</p>
-    </article>
-  `;
-}
-
-async function renderRequests() {
-  if (!state.currentUser) {
-    els.requestList.innerHTML = '<p class="small">Sign in to submit and manage requests.</p>';
-    els.requestCount.textContent = '0';
-    return;
-  }
-  const rows = await dataApi.listRequests(state.currentUser.uid);
-  els.requestCount.textContent = String(rows.length);
-  if (!rows.length) {
-    els.requestList.innerHTML = '<p class="small">No requests yet. Submit a service request when you need support.</p>';
-    return;
-  }
-
-  els.requestList.innerHTML = '';
-  rows.forEach((row) => {
-    const item = document.createElement('article');
-    item.className = 'item';
-    item.innerHTML = `
-      <div class="request-top">
-        <strong>${row.type.toUpperCase()} request</strong>
-        <span class="status">${row.status}</span>
-      </div>
-      <p class="small">Phone: ${row.phone || '-'} • Location: ${row.location || '-'}</p>
-      <p>${row.notes || '(no notes)'}</p>
-      <p class="small">Created ${new Date(row.createdAt).toLocaleString()}</p>
-  tpl: document.getElementById('contentItemTemplate')
-};
-
-let currentUser = null;
-
-function renderCategories() {
-  els.categoryGrid.innerHTML = '';
-  Object.keys(categories).filter((x) => x !== 'all').forEach((category) => {
-    const div = document.createElement('div');
-    div.className = 'badge';
-    div.textContent = `${category.toUpperCase()} • ${categories[category].length - 1} tracks`;
-    els.categoryGrid.appendChild(div);
-  });
-}
-
-function hydrateFilters() {
-  els.categoryFilter.innerHTML = Object.keys(categories)
-    .map((c) => `<option value="${c}">${c}</option>`)
-    .join('');
-  fillSubcategories('all');
-}
-
-function fillSubcategories(category) {
-  const options = categories[category] || ['all'];
-  els.subcategoryFilter.innerHTML = options.map((s) => `<option value="${s}">${s}</option>`).join('');
-}
-
-function mustAuth() {
-  if (!currentUser) throw new Error('Sign in first.');
-}
-
-async function renderContent() {
-  const category = els.categoryFilter.value;
-  const subcategory = els.subcategoryFilter.value;
-  const rows = await dataApi.listContent({
-    category: category === 'all' ? undefined : category,
-    subcategory: subcategory === 'all' ? undefined : subcategory
-  });
-  els.contentList.innerHTML = '';
-  rows.forEach((row) => {
-    const node = els.tpl.content.cloneNode(true);
-    node.querySelector('.title').textContent = row.title;
-    node.querySelector('.summary').textContent = row.summary;
-    node.querySelector('.meta').textContent = `${row.category}/${row.subcategory} • ${row.type}`;
-    node.querySelector('.saveBtn').addEventListener('click', async () => {
-      mustAuth();
-      await dataApi.saveContent({ userId: currentUser.uid, contentId: row.id });
-      await renderSaved();
-    });
-    node.querySelector('.progressBtn').addEventListener('click', async () => {
-      mustAuth();
-      await dataApi.addProgress({ userId: currentUser.uid, contentId: row.id, deltaSeconds: 30 });
-      await renderContinueWatching();
-    });
-    els.contentList.appendChild(node);
-  });
-}
-
-async function renderSaved() {
-  els.savedList.innerHTML = '';
-  if (!currentUser) {
-    els.savedList.innerHTML = '<p class="small">Sign in to see saved content.</p>';
-    return;
-  }
-  const rows = await dataApi.listSaved(currentUser.uid);
-  if (!rows.length) {
-    els.savedList.innerHTML = '<p class="small">No saved content yet.</p>';
-    return;
-  }
-  rows.forEach((row) => {
-    const div = document.createElement('div');
-    div.className = 'item';
-    div.innerHTML = `<strong>${row.content.title}</strong><div class="small">Saved ${new Date(row.savedAt).toLocaleString()}</div>`;
-    els.savedList.appendChild(div);
-  });
-}
-
-async function renderContinueWatching() {
-  els.continueBox.innerHTML = '';
-  if (!currentUser) {
     els.continueBox.innerHTML = '<p class="small">Sign in to track progress.</p>';
     return;
   }
-  const cw = await dataApi.continueWatching(currentUser.uid);
-  if (!cw) {
-    els.continueBox.innerHTML = '<p class="small">No progress tracked yet.</p>';
-    return;
-  }
-  const div = document.createElement('div');
-  div.className = 'item';
-  div.innerHTML = `<strong>${cw.content.title}</strong><div class="small">Progress: ${cw.progress.progressSeconds}s</div>`;
-  els.continueBox.appendChild(div);
+
+  const cw = await dataApi.continueWatching(state.currentUser.uid);
+  els.continueBox.innerHTML = cw
+    ? `<article class="item"><strong>${cw.content.title}</strong><p class="small">${cw.progress.progressSeconds}s watched</p></article>`
+    : '<p class="small">No progress tracked yet.</p>';
 }
 
 async function renderRequests() {
-  els.requestList.innerHTML = '';
-  if (!currentUser) {
+  if (!state.currentUser) {
     els.requestList.innerHTML = '<p class="small">Sign in to submit and view requests.</p>';
+    els.requestCount.textContent = '0';
     return;
   }
-  const rows = await dataApi.listRequests(currentUser.uid);
-  if (!rows.length) {
-    els.requestList.innerHTML = '<p class="small">No requests yet.</p>';
-    return;
-  }
-  rows.forEach((row) => {
-    const div = document.createElement('div');
-    div.className = 'item';
-    div.innerHTML = `
-      <strong>${row.type.toUpperCase()} • ${row.status}</strong>
-      <p>${row.notes || '(no notes)'}</p>
-      <p class="small">${new Date(row.createdAt).toLocaleString()}</p>
-      <label>Update notes
-        <textarea rows="2">${row.notes || ''}</textarea>
-      </label>
-      <button class="secondary">Save Notes</button>
-    `;
-    const textarea = item.querySelector('textarea');
-    item.querySelector('button').addEventListener('click', async () => {
-      await dataApi.updateRequestNotes({
-        userId: state.currentUser.uid,
-    const textarea = div.querySelector('textarea');
-    div.querySelector('button').addEventListener('click', async () => {
-      await dataApi.updateRequestNotes({
-        userId: currentUser.uid,
-        requestId: row.id,
-        notes: textarea.value,
-        preferredTime: row.preferredTime
-      });
-      await renderRequests();
-    });
-    els.requestList.appendChild(item);
-    els.requestList.appendChild(div);
-  });
+
+  const rows = await dataApi.listRequests(state.currentUser.uid);
+  els.requestCount.textContent = String(rows.length);
+  els.requestList.innerHTML = rows.length
+    ? rows.map((row) => `<article class="item"><strong>${row.type}</strong><p>${row.notes || '(no notes)'}</p></article>`).join('')
+    : '<p class="small">No requests yet.</p>';
 }
 
 async function refreshAll() {
   state.currentUser = authApi.getCurrentUser();
-  currentUser = authApi.getCurrentUser();
   await Promise.all([renderContent(), renderSaved(), renderContinueWatching(), renderRequests()]);
 }
 
@@ -401,17 +144,18 @@ els.logoutBtn.addEventListener('click', async () => {
   await refreshAll();
 });
 
-els.searchInput.addEventListener('input', async (event) => {
-  state.searchTerm = event.target.value;
+els.prevPageBtn.addEventListener('click', async () => {
+  if (state.page <= 1) return;
+  state.page -= 1;
   await renderContent();
 });
 
-els.sortSelect.addEventListener('change', async (event) => {
-  state.sortBy = event.target.value;
+els.nextPageBtn.addEventListener('click', async () => {
+  state.page += 1;
   await renderContent();
 });
 
-els.refreshContent.addEventListener('click', renderContent);
+els.refreshContent.addEventListener('click', () => renderContent());
 
 els.requestForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -422,19 +166,6 @@ els.requestForm.addEventListener('submit', async (event) => {
     type: fd.get('type'),
     phone: fd.get('phone'),
     location: fd.get('location'),
-els.categoryFilter.addEventListener('change', async (e) => {
-  fillSubcategories(e.target.value);
-  await renderContent();
-});
-els.subcategoryFilter.addEventListener('change', renderContent);
-els.refreshContent.addEventListener('click', renderContent);
-els.requestForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  mustAuth();
-  const fd = new FormData(els.requestForm);
-  await dataApi.createRequest({
-    userId: currentUser.uid,
-    type: fd.get('type'),
     notes: fd.get('notes'),
     preferredTime: fd.get('preferredTime')
   });
@@ -443,8 +174,5 @@ els.requestForm.addEventListener('submit', async (e) => {
 });
 
 await dataApi.bootstrap();
-renderCategoryJourney();
-renderSubcategories();
-renderCategories();
-hydrateFilters();
+filters.render();
 await refreshAll();

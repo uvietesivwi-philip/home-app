@@ -28,11 +28,7 @@ const els = {
 
 const state = {
   currentUser: null,
-  category: 'cook',
-  subcategory: null,
-  searchTerm: '',
-  sortBy: 'newest',
-  selectedContentId: null
+  rows: []
 };
 
 function ensureSignedIn() {
@@ -85,25 +81,9 @@ function renderCategoryJourney() {
   });
 }
 
-function renderSubcategories() {
-  els.subcategoryGrid.innerHTML = '';
-  const subs = taxonomy[state.category] || [];
-  els.subcategoryGrid.appendChild(
-    createPill('ALL', state.subcategory === null, async () => {
-      state.subcategory = null;
-      renderSubcategories();
-      await renderContent();
-    })
-  );
-  subs.forEach((sub) => {
-    els.subcategoryGrid.appendChild(
-      createPill(sub, state.subcategory === sub, async () => {
-        state.subcategory = sub;
-        renderSubcategories();
-        await renderContent();
-      })
-    );
-  });
+function getRoute() {
+  const match = window.location.hash.match(/^#\/content\/([^/?#]+)/);
+  return { contentId: match ? decodeURIComponent(match[1]) : null };
 }
 
 function renderDetail(row) {
@@ -140,39 +120,23 @@ async function renderContent() {
 
   rows.forEach((row) => {
     const node = els.tpl.content.cloneNode(true);
-    node.querySelector('.meta').textContent = `${row.category}/${row.subcategory}`;
-    node.querySelector('.cover').src = row.coverImage || 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80';
-    node.querySelector('.cover').alt = `${row.title} cover image`;
-    node.querySelector('.media-chip').textContent = row.type.toUpperCase();
-    node.querySelector('.audience').textContent = row.audience || 'general';
     node.querySelector('.title').textContent = row.title;
-    node.querySelector('.summary').textContent = row.summary;
-    node.querySelector('.details').textContent = `${row.type.toUpperCase()} • ${row.durationMin || '-'} min`;
-    node.querySelector('.tags').innerHTML = (row.tags || []).map((tag) => `<span class="chip">${tag}</span>`).join('');
-
+    node.querySelector('.summary').textContent = row.summary || row.description || '';
+    node.querySelector('.meta').textContent = `${row.category}/${row.subcategory}`;
     node.querySelector('.viewBtn').addEventListener('click', () => {
-      state.selectedContentId = row.id;
-      renderDetail(row);
+      window.location.hash = `#/content/${encodeURIComponent(row.id)}`;
     });
-
-    node.querySelector('.saveBtn').addEventListener('click', async () => {
-      ensureSignedIn();
-      await dataApi.saveContent({ userId: state.currentUser.uid, contentId: row.id });
-      await renderSaved();
-    });
-
-    node.querySelector('.progressBtn').addEventListener('click', async () => {
-      ensureSignedIn();
-      await dataApi.addProgress({ userId: state.currentUser.uid, contentId: row.id, deltaSeconds: 30 });
-      await renderContinueWatching();
-    });
-
     els.contentList.appendChild(node);
   });
+}
 
-  const selected = rows.find((x) => x.id === state.selectedContentId) || rows[0];
-  state.selectedContentId = selected.id;
-  renderDetail(selected);
+function showDetailState(message) {
+  els.detailState.textContent = message;
+  els.detailState.hidden = false;
+  els.detailTitle.textContent = '';
+  els.detailDescription.textContent = '';
+  els.detailMedia.innerHTML = '';
+  els.detailMetadata.innerHTML = '';
 }
 
 async function renderSaved() {
@@ -282,17 +246,16 @@ async function refreshAll() {
 
 els.loginBtn.addEventListener('click', async () => {
   await authApi.signInDemo();
-  await refreshAll();
+  await refresh();
 });
 
 els.logoutBtn.addEventListener('click', async () => {
   await authApi.signOut();
-  await refreshAll();
+  await refresh();
 });
 
-els.searchInput.addEventListener('input', async (event) => {
-  state.searchTerm = event.target.value;
-  await renderContent();
+els.backToList.addEventListener('click', () => {
+  window.location.hash = '#/';
 });
 
 els.sortSelect.addEventListener('change', async (event) => {

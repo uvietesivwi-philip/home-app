@@ -121,31 +121,13 @@ To move to production Firebase mode:
 
 
 
-## Firebase multi-environment configuration
+## Admin claim operations
 
-This repo is configured for three Firebase environments in `.firebaserc`:
-- `dev` -> `home-app-dev`
-- `staging` -> `home-app-staging`
-- `prod` -> `home-app-prod`
+Secure admin access management and rollback steps are documented in `ADMIN_ACCESS_RUNBOOK.md`.
 
-`firebase.json` now includes deploy targets for:
-- Firestore rules + indexes (`target: app`)
-- Storage rules (`target: app`)
-- Hosting (`target: web`, `target: admin`)
-- Functions (`codebase: default`, source: `functions/`)
-
-Example deploy commands:
-
-```bash
-firebase use dev
-firebase deploy --only firestore:app,storage:app,hosting:web,hosting:admin,functions
-
-firebase use staging
-firebase deploy --only firestore:app,storage:app,hosting:web,hosting:admin,functions
-
-firebase use prod
-firebase deploy --only firestore:app,storage:app,hosting:web,hosting:admin,functions
-```
+- Grant/revoke script: `backend/admin/set-admin-claim.mjs`
+- Callable backend example with claim guard: `backend/functions/admin-claims.js`
+- Firestore rules enforce `request.auth.token.admin` for privileged data operations.
 
 ## Deploy to a live server
 

@@ -68,6 +68,13 @@ export const authApi = {
   getCurrentUser() {
     const raw = localStorage.getItem(LS_KEYS.user);
     return raw ? JSON.parse(raw) : null;
+  },
+  getCurrentClaims() {
+    const raw = localStorage.getItem(LS_KEYS.claims);
+    return raw ? JSON.parse(raw) : null;
+  },
+  hasAdminClaim() {
+    return Boolean(authApi.getCurrentClaims()?.admin);
   }
 };
 
@@ -333,6 +340,7 @@ export const dataApi = {
   },
 
   async seedDefaultContent() {
+    requireAdminClaim();
     const content = await loadDefaultContent();
     setLS(LS_KEYS.content, content);
   }

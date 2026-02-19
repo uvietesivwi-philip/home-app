@@ -1,0 +1,15 @@
+{
+  "name": "home-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "lint": "bash scripts/lint.sh",
+    "typecheck": "bash scripts/typecheck.sh",
+    "test:unit": "node --test tests/unit/**/*.test.js",
+    "test:integration": "node --test tests/integration/**/*.test.js",
+    "test:rules": "node --test tests/rules/**/*.test.js",
+    "build": "bash scripts/build-artifacts.sh",
+    "deploy:staging": "bash scripts/deploy.sh staging",
+    "deploy:prod": "bash scripts/deploy.sh prod"
+  }
+}

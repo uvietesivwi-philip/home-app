@@ -15,9 +15,7 @@
       <div class="hero-content">
         <p class="eyebrow">HOME HELP • PREMIUM MVP</p>
         <h1>Your family lifestyle hub — learn, plan, and request trusted support.</h1>
-        <p class="hero-copy">
-          Beautiful, practical guidance for cooking, childcare, home maintenance, and family bonding — with on-demand service requests when life gets busy.
-        </p>
+        <p class="hero-copy">Beautiful, practical guidance for cooking, childcare, home maintenance, and family bonding — with on-demand service requests when life gets busy.</p>
         <div class="hero-actions">
           <button id="loginBtn">Sign In Demo User</button>
           <button id="logoutBtn" class="secondary">Sign Out</button>
@@ -99,8 +97,8 @@
         </section>
 
         <section class="panel glass">
-          <h2>Request support</h2>
-          <p class="subtle">Book practical services with clear details for fast response.</p>
+          <h2>Submit a support request</h2>
+          <p class="subtle">Only required fields are collected: <strong>type</strong> and <strong>notes</strong>. New requests default to <strong>pending</strong>.</p>
           <form id="requestForm" class="form-grid">
             <label>Service type
               <select name="type" required>
@@ -109,22 +107,14 @@
                 <option value="escort">Security Escort</option>
               </select>
             </label>
-            <label>Contact phone
-              <input type="tel" name="phone" required placeholder="e.g. +234..." />
-            </label>
-            <label>Location
-              <input type="text" name="location" required placeholder="Neighborhood / estate" />
-            </label>
-            <label>Preferred time
-              <input type="datetime-local" name="preferredTime" />
-            </label>
-            <label class="full">Request details
-              <textarea name="notes" rows="4" placeholder="Tell us exactly what kind of help you need"></textarea>
+            <label class="full">Request notes
+              <textarea name="notes" rows="4" placeholder="Describe the support you need"></textarea>
             </label>
             <button type="submit">Submit Request</button>
           </form>
 
-          <h3>My requests</h3>
+          <h3>Request history (my account)</h3>
+          <p class="small">History is filtered to your signed-in user. You can only update notes or request cancellation while status is pending.</p>
           <div id="requestList" class="list"></div>
         </section>
       </section>

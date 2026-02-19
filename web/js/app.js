@@ -30,12 +30,12 @@ const els = {
 
 const state = {
   currentUser: null,
-  category: 'cook',
-  subcategory: null,
-  searchTerm: '',
-  sortBy: 'newest',
-  selectedContentId: null
+  rows: []
 };
+
+function ensureSignedIn() {
+  if (!state.currentUser) throw new Error('Sign in to perform this action.');
+}
 
 function createPill(text, active, onClick) {
   const btn = document.createElement('button');
@@ -44,10 +44,6 @@ function createPill(text, active, onClick) {
   btn.textContent = text;
   btn.addEventListener('click', onClick);
   return btn;
-}
-
-function ensureSignedIn() {
-  if (!state.currentUser) throw new Error('Sign in to perform this action.');
 }
 
 function textIncludes(row, query) {
@@ -87,25 +83,9 @@ function renderCategoryJourney() {
   });
 }
 
-function renderSubcategories() {
-  els.subcategoryGrid.innerHTML = '';
-  const subs = taxonomy[state.category] || [];
-  els.subcategoryGrid.appendChild(
-    createPill('ALL', state.subcategory === null, async () => {
-      state.subcategory = null;
-      renderSubcategories();
-      await renderContent();
-    })
-  );
-  subs.forEach((sub) => {
-    els.subcategoryGrid.appendChild(
-      createPill(sub, state.subcategory === sub, async () => {
-        state.subcategory = sub;
-        renderSubcategories();
-        await renderContent();
-      })
-    );
-  });
+function getRoute() {
+  const match = window.location.hash.match(/^#\/content\/([^/?#]+)/);
+  return { contentId: match ? decodeURIComponent(match[1]) : null };
 }
 
 function renderDetail(row) {
@@ -113,9 +93,11 @@ function renderDetail(row) {
     els.detailBox.innerHTML = '<p class="small">Select “View details” on any content item to see richer guidance here.</p>';
     return;
   }
+
   const videoHtml = row.bgVideo
     ? `<video class="detail-video" autoplay muted loop playsinline><source src="${row.bgVideo}" type="video/mp4" /></video><div class="detail-video-overlay"></div>`
     : '';
+
   els.detailBox.innerHTML = `
     <div class="detail-media">
       ${videoHtml}
@@ -125,13 +107,13 @@ function renderDetail(row) {
     <p class="subtle">${row.description || row.summary}</p>
     <p class="small">Category: <strong>${row.category}/${row.subcategory}</strong> • Type: <strong>${row.type}</strong></p>
     <p class="small">Audience: <strong>${row.audience || 'general'}</strong> • Duration: <strong>${row.durationMin || '-'} min</strong></p>
-    <div class="chip-row">${(row.tags || []).map((tag) => `<span class="chip">#${tag}</span>`).join('')}</div>
   `;
 }
 
 async function renderContent() {
   const rows = await getVisibleContent();
   els.contentList.innerHTML = '';
+
   if (!rows.length) {
     els.contentList.innerHTML = '<p class="small">No content matched your current filters. Try another search or category.</p>';
     renderDetail(null);
@@ -140,39 +122,23 @@ async function renderContent() {
 
   rows.forEach((row) => {
     const node = els.tpl.content.cloneNode(true);
-    node.querySelector('.meta').textContent = `${row.category}/${row.subcategory}`;
-    node.querySelector('.cover').src = row.coverImage || 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=1200&q=80';
-    node.querySelector('.cover').alt = `${row.title} cover image`;
-    node.querySelector('.media-chip').textContent = row.type.toUpperCase();
-    node.querySelector('.audience').textContent = row.audience || 'general';
     node.querySelector('.title').textContent = row.title;
-    node.querySelector('.summary').textContent = row.summary;
-    node.querySelector('.details').textContent = `${row.type.toUpperCase()} • ${row.durationMin || '-'} min`;
-    node.querySelector('.tags').innerHTML = (row.tags || []).map((tag) => `<span class="chip">${tag}</span>`).join('');
-
+    node.querySelector('.summary').textContent = row.summary || row.description || '';
+    node.querySelector('.meta').textContent = `${row.category}/${row.subcategory}`;
     node.querySelector('.viewBtn').addEventListener('click', () => {
-      state.selectedContentId = row.id;
-      renderDetail(row);
+      window.location.hash = `#/content/${encodeURIComponent(row.id)}`;
     });
-
-    node.querySelector('.saveBtn').addEventListener('click', async () => {
-      ensureSignedIn();
-      await dataApi.saveContent({ userId: state.currentUser.uid, contentId: row.id });
-      await renderSaved();
-    });
-
-    node.querySelector('.progressBtn').addEventListener('click', async () => {
-      ensureSignedIn();
-      await dataApi.addProgress({ userId: state.currentUser.uid, contentId: row.id, deltaSeconds: 30 });
-      await renderContinueWatching();
-    });
-
     els.contentList.appendChild(node);
   });
+}
 
-  const selected = rows.find((x) => x.id === state.selectedContentId) || rows[0];
-  state.selectedContentId = selected.id;
-  renderDetail(selected);
+function showDetailState(message) {
+  els.detailState.textContent = message;
+  els.detailState.hidden = false;
+  els.detailTitle.textContent = '';
+  els.detailDescription.textContent = '';
+  els.detailMedia.innerHTML = '';
+  els.detailMetadata.innerHTML = '';
 }
 
 async function renderSaved() {
@@ -184,8 +150,9 @@ async function renderSaved() {
 
   const rows = await dataApi.listSaved(state.currentUser.uid);
   els.savedCount.textContent = String(rows.length);
+
   if (!rows.length) {
-    els.savedList.innerHTML = '<p class="small">No saved content yet. Save useful guides to build your routine.</p>';
+    els.savedList.innerHTML = '<p class="small">No saved content yet.</p>';
     return;
   }
 
@@ -220,29 +187,10 @@ async function renderContinueWatching() {
     els.continueBox.innerHTML = '<p class="small">Sign in to track progress and resume content.</p>';
     return;
   }
+
   const row = await dataApi.continueWatching(state.currentUser.uid);
   if (!row) {
-    els.continueBox.innerHTML = '<p class="small">No progress yet. Tap +30s on any content to start tracking.</p>';
-    return;
-  }
-  els.continueBox.innerHTML = `
-    <article class="item">
-      <strong>${row.content.title}</strong>
-      <p class="small">${row.progress.progressSeconds}s tracked • updated ${new Date(row.progress.updatedAt).toLocaleString()}</p>
-    </article>
-  `;
-}
-
-async function renderRequests() {
-  if (!state.currentUser) {
-    els.requestList.innerHTML = '<p class="small">Sign in to submit and manage requests.</p>';
-    els.requestCount.textContent = '0';
-    return;
-  }
-  const rows = await dataApi.listRequests(state.currentUser.uid);
-  els.requestCount.textContent = String(rows.length);
-  if (!rows.length) {
-    els.requestList.innerHTML = '<p class="small">No requests yet. Submit a service request when you need support.</p>';
+    els.continueBox.innerHTML = '<p class="small">No progress yet. Tap +30s on content to start tracking.</p>';
     return;
   }
 
@@ -309,12 +257,12 @@ async function refreshAll() {
 
 els.loginBtn.addEventListener('click', async () => {
   await authApi.signInDemo();
-  await refreshAll();
+  await refresh();
 });
 
 els.logoutBtn.addEventListener('click', async () => {
   await authApi.signOut();
-  await refreshAll();
+  await refresh();
 });
 
 els.deleteAccountBtn.addEventListener('click', async () => {

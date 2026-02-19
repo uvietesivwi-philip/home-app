@@ -10,6 +10,7 @@ const taxonomy = {
 const els = {
   loginBtn: document.getElementById('loginBtn'),
   logoutBtn: document.getElementById('logoutBtn'),
+  deleteAccountBtn: document.getElementById('deleteAccountBtn'),
   categoryGrid: document.getElementById('categoryGrid'),
   subcategoryGrid: document.getElementById('subcategoryGrid'),
   refreshContent: document.getElementById('refreshContent'),
@@ -23,6 +24,7 @@ const els = {
   requestList: document.getElementById('requestList'),
   savedCount: document.getElementById('savedCount'),
   requestCount: document.getElementById('requestCount'),
+  profileBox: document.getElementById('profileBox'),
   tpl: document.getElementById('contentItemTemplate')
 };
 
@@ -154,11 +156,30 @@ async function renderSaved() {
     return;
   }
 
-  els.savedList.innerHTML = rows
-    .map(
-      (row) => `<article class="item"><strong>${row.content.title}</strong><p class="small">${row.content.category}/${row.content.subcategory} • saved ${new Date(row.savedAt).toLocaleString()}</p></article>`
-    )
-    .join('');
+  els.savedList.innerHTML = '';
+  rows.forEach((row) => {
+    const item = document.createElement('article');
+    item.className = 'item';
+
+    if (row.isOrphaned) {
+      item.innerHTML = `
+        <strong>Unavailable content</strong>
+        <p class="small">This saved entry references deleted content (${row.contentId}).</p>
+        <button class="secondary remove-orphan">Remove entry</button>
+      `;
+      item.querySelector('.remove-orphan').addEventListener('click', async () => {
+        await dataApi.removeSaved({ userId: state.currentUser.uid, savedId: row.id });
+        await renderSaved();
+      });
+    } else {
+      item.innerHTML = `
+        <strong>${row.content.title}</strong>
+        <p class="small">${row.content.category}/${row.content.subcategory} • saved ${new Date(row.savedAt).toLocaleString()}</p>
+      `;
+    }
+
+    els.savedList.appendChild(item);
+  });
 }
 
 async function renderContinueWatching() {
@@ -173,75 +194,65 @@ async function renderContinueWatching() {
     return;
   }
 
-  els.continueBox.innerHTML = `<article class="item"><strong>${row.content.title}</strong><p class="small">${row.progress.progressSeconds}s tracked • updated ${new Date(row.progress.updatedAt).toLocaleString()}</p></article>`;
-}
+  els.requestList.innerHTML = '';
+  rows.forEach((row) => {
+    const item = document.createElement('article');
+    item.className = 'item';
+    item.innerHTML = `
+      <div class="request-top">
+        <strong>${row.type.toUpperCase()} request</strong>
+        <span class="status">${row.status}</span>
+      </div>
+      <p class="small">Phone: ${row.phone || '-'} • Location: ${row.location || '-'}</p>
+      <p>${row.notes || '(no notes)'}</p>
+      <p class="small">Created ${new Date(row.createdAt).toLocaleString()}</p>
+      <label>Update notes
+        <textarea rows="2">${row.notes || ''}</textarea>
+      </label>
+      <button class="secondary">Save Notes</button>
+    `;
 
-function buildRequestEditor(row) {
-  const item = document.createElement('article');
-  item.className = 'item';
-
-  const locked = row.status !== 'pending';
-  const statusLabel = row.cancelRequested ? `${row.status} (cancel requested)` : row.status;
-
-  item.innerHTML = `
-    <div class="request-top">
-      <strong>${row.type.toUpperCase()} request</strong>
-      <span class="status">${statusLabel}</span>
-    </div>
-    <p class="small">Created ${new Date(row.createdAt).toLocaleString()}</p>
-    <label>Notes
-      <textarea rows="2" ${locked ? 'disabled' : ''}>${row.notes || ''}</textarea>
-    </label>
-    <label class="checkbox-row">
-      <input type="checkbox" ${row.cancelRequested ? 'checked' : ''} ${locked ? 'disabled' : ''} />
-      Request cancellation
-    </label>
-    <button class="secondary" ${locked ? 'disabled' : ''}>Save update</button>
-  `;
-
-  const textarea = item.querySelector('textarea');
-  const checkbox = item.querySelector('input[type="checkbox"]');
-  const saveBtn = item.querySelector('button');
-
-  if (!locked) {
-    saveBtn.addEventListener('click', async () => {
-      await dataApi.updateRequestByUser({
+    const textarea = item.querySelector('textarea');
+    item.querySelector('button').addEventListener('click', async () => {
+      await dataApi.updateRequestNotes({
         userId: state.currentUser.uid,
         requestId: row.id,
         notes: textarea.value,
-        cancelRequested: checkbox.checked
+        preferredTime: row.preferredTime
       });
       await renderRequests();
     });
-  }
 
-  return item;
+    els.requestList.appendChild(item);
+  });
 }
 
-async function renderRequests() {
+async function renderProfile() {
   if (!state.currentUser) {
-    els.requestList.innerHTML = '<p class="small">Sign in to submit and view your request history.</p>';
-    els.requestCount.textContent = '0';
+    els.profileBox.innerHTML = '<p class="small">Sign in to load your profile from <code>users/{uid}</code>.</p>';
     return;
   }
 
-  const rows = await dataApi.listRequests(state.currentUser.uid);
-  els.requestCount.textContent = String(rows.length);
-
-  if (!rows.length) {
-    els.requestList.innerHTML = '<p class="small">No request history yet.</p>';
+  const profile = await dataApi.getUserProfile(state.currentUser.uid);
+  if (!profile) {
+    els.profileBox.innerHTML = '<p class="small">Profile document not found.</p>';
     return;
   }
 
-  els.requestList.innerHTML = '';
-  rows.forEach((row) => {
-    els.requestList.appendChild(buildRequestEditor(row));
-  });
+  els.profileBox.innerHTML = `
+    <article class="item">
+      <strong>${profile.fullName}</strong>
+      <p class="small">UID: ${profile.uid}</p>
+      <p class="small">${profile.email} • ${profile.plan}</p>
+      <p class="small">Status: ${profile.status}</p>
+      <p class="small">Joined ${new Date(profile.createdAt).toLocaleString()}</p>
+    </article>
+  `;
 }
 
 async function refreshAll() {
   state.currentUser = authApi.getCurrentUser();
-  await Promise.all([renderContent(), renderSaved(), renderContinueWatching(), renderRequests()]);
+  await Promise.all([renderProfile(), renderContent(), renderSaved(), renderContinueWatching(), renderRequests()]);
 }
 
 els.loginBtn.addEventListener('click', async () => {
@@ -254,8 +265,18 @@ els.logoutBtn.addEventListener('click', async () => {
   await refresh();
 });
 
-els.backToList.addEventListener('click', () => {
-  window.location.hash = '#/';
+els.deleteAccountBtn.addEventListener('click', async () => {
+  ensureSignedIn();
+  const approved = window.confirm('Submit account deletion + data erase request and sign out?');
+  if (!approved) return;
+  await dataApi.requestAccountDeletion({ userId: state.currentUser.uid, reason: 'privacy_compliance_request' });
+  await authApi.signOut();
+  await refreshAll();
+});
+
+els.searchInput.addEventListener('input', async (event) => {
+  state.searchTerm = event.target.value;
+  await renderContent();
 });
 
 els.sortSelect.addEventListener('change', async (event) => {
@@ -272,7 +293,10 @@ els.requestForm.addEventListener('submit', async (event) => {
   await dataApi.createRequest({
     userId: state.currentUser.uid,
     type: fd.get('type'),
-    notes: fd.get('notes')
+    phone: fd.get('phone'),
+    location: fd.get('location'),
+    notes: fd.get('notes'),
+    preferredTime: fd.get('preferredTime')
   });
   els.requestForm.reset();
   await renderRequests();

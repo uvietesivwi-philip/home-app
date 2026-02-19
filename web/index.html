@@ -19,6 +19,7 @@
         <div class="hero-actions">
           <button id="loginBtn">Sign In Demo User</button>
           <button id="logoutBtn" class="secondary">Sign Out</button>
+          <button id="deleteAccountBtn" class="secondary">Delete Account/Data Request</button>
         </div>
       </div>
     </header>
@@ -33,6 +34,11 @@
           <li><span>3</span> Track routines and build consistency</li>
           <li><span>4</span> Request trusted human support</li>
         </ol>
+
+        <section>
+          <h3>Profile (<code>users/{uid}</code>)</h3>
+          <div id="profileBox" class="list"></div>
+        </section>
 
         <div class="stat-grid">
           <article>
@@ -85,6 +91,7 @@
           </div>
           <div>
             <h2>Saved collection</h2>
+            <p class="small">Saved item query + join strategy with orphan handling.</p>
             <div id="savedList" class="list"></div>
           </div>
         </section>

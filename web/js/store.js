@@ -22,6 +22,26 @@ function setLS(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function getAuthenticatedUserId() {
+  const currentUser = authApi.getCurrentUser();
+  return currentUser?.uid || null;
+}
+
+function assertAuthenticatedUser(userId) {
+  const authenticatedUserId = getAuthenticatedUserId();
+  if (!authenticatedUserId) {
+    throw new Error('Sign in to perform this action.');
+  }
+  if (userId !== authenticatedUserId) {
+    throw new Error('Provided userId does not match authenticated user.');
+  }
+  return authenticatedUserId;
+}
+
+function buildSavedId(userId, contentId) {
+  return `${userId}_${contentId}`;
+}
+
 export const authApi = {
   async signInDemo() {
     localStorage.setItem('hh_user', JSON.stringify(USER));
@@ -62,24 +82,58 @@ export const dataApi = {
     return saved.map((s) => ({ ...s, content: contentById[s.contentId] })).filter((x) => x.content);
   },
 
-  async saveContent({ userId, contentId }) {
+  async isContentSaved({ userId, contentId }) {
+    const authenticatedUserId = assertAuthenticatedUser(userId);
+    const savedId = buildSavedId(authenticatedUserId, contentId);
     const saved = getLS(LS_KEYS.saved);
-    if (!saved.find((x) => x.userId === userId && x.contentId === contentId)) {
-      saved.push({ id: crypto.randomUUID(), userId, contentId, savedAt: new Date().toISOString() });
-      setLS(LS_KEYS.saved, saved);
+    return saved.some((x) => x.id === savedId || (x.userId === authenticatedUserId && x.contentId === contentId));
+  },
+
+  async saveContent({ userId, contentId }) {
+    const authenticatedUserId = assertAuthenticatedUser(userId);
+    const savedId = buildSavedId(authenticatedUserId, contentId);
+    const saved = getLS(LS_KEYS.saved);
+
+    const existing = saved.find((x) => x.id === savedId || (x.userId === authenticatedUserId && x.contentId === contentId));
+    if (existing) {
+      return existing;
     }
+
+    const record = {
+      id: savedId,
+      userId: authenticatedUserId,
+      contentId,
+      savedAt: new Date().toISOString()
+    };
+    saved.push(record);
+    setLS(LS_KEYS.saved, saved);
+    return record;
+  },
+
+  async unsaveContent({ userId, contentId }) {
+    const authenticatedUserId = assertAuthenticatedUser(userId);
+    const savedId = buildSavedId(authenticatedUserId, contentId);
+    const saved = getLS(LS_KEYS.saved);
+
+    const filtered = saved.filter((x) => !(x.id === savedId || (x.userId === authenticatedUserId && x.contentId === contentId)));
+    if (filtered.length !== saved.length) {
+      setLS(LS_KEYS.saved, filtered);
+      return true;
+    }
+    return false;
   },
 
   async addProgress({ userId, contentId, deltaSeconds }) {
+    const authenticatedUserId = assertAuthenticatedUser(userId);
     const progress = getLS(LS_KEYS.progress);
-    const existing = progress.find((x) => x.userId === userId && x.contentId === contentId);
+    const existing = progress.find((x) => x.userId === authenticatedUserId && x.contentId === contentId);
     if (existing) {
       existing.progressSeconds += deltaSeconds;
       existing.updatedAt = new Date().toISOString();
     } else {
       progress.push({
         id: crypto.randomUUID(),
-        userId,
+        userId: authenticatedUserId,
         contentId,
         progressSeconds: deltaSeconds,
         updatedAt: new Date().toISOString()
@@ -98,11 +152,11 @@ export const dataApi = {
   },
 
   async createRequest({ userId, type, phone, location, notes, preferredTime }) {
-  async createRequest({ userId, type, notes, preferredTime }) {
+    const authenticatedUserId = assertAuthenticatedUser(userId);
     const requests = getLS(LS_KEYS.requests);
     requests.push({
       id: crypto.randomUUID(),
-      userId,
+      userId: authenticatedUserId,
       type,
       phone: phone || null,
       location: location || null,
@@ -121,8 +175,9 @@ export const dataApi = {
   },
 
   async updateRequestNotes({ userId, requestId, notes, preferredTime }) {
+    const authenticatedUserId = assertAuthenticatedUser(userId);
     const requests = getLS(LS_KEYS.requests);
-    const row = requests.find((x) => x.id === requestId && x.userId === userId);
+    const row = requests.find((x) => x.id === requestId && x.userId === authenticatedUserId);
     if (!row) return;
     row.notes = notes;
     row.preferredTime = preferredTime || row.preferredTime;

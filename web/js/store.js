@@ -1,11 +1,19 @@
 import { APP_CONFIG } from './config.js';
 
-const USER = { uid: 'demo-user-1', name: 'Demo User' };
+const USER = {
+  uid: 'demo-user-1',
+  name: 'Demo User',
+  email: 'demo.user@homehelp.test'
+};
+
 const LS_KEYS = {
+  user: 'hh_user',
+  users: 'hh_users',
   content: 'hh_content',
   saved: 'hh_saved',
   progress: 'hh_progress',
-  requests: 'hh_requests'
+  requests: 'hh_requests',
+  privacy: 'hh_privacy_requests'
 };
 
 async function loadDefaultContent() {
@@ -22,16 +30,33 @@ function setLS(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function chunk(array, size) {
+  const out = [];
+  for (let i = 0; i < array.length; i += size) out.push(array.slice(i, i + size));
+  return out;
+}
+
+async function batchFetchContentByIds(ids) {
+  if (!ids.length) return [];
+  const content = getLS(LS_KEYS.content);
+  const batches = chunk(ids, 10);
+  return batches.flatMap((batch) => content.filter((row) => batch.includes(row.id)));
+}
+
 export const authApi = {
   async signInDemo() {
-    localStorage.setItem('hh_user', JSON.stringify(USER));
+    localStorage.setItem(LS_KEYS.user, JSON.stringify(USER));
     return USER;
   },
   async signOut() {
-    localStorage.removeItem('hh_user');
+    localStorage.removeItem(LS_KEYS.user);
   },
   getCurrentUser() {
-    const raw = localStorage.getItem('hh_user');
+    const raw = localStorage.getItem(LS_KEYS.user);
     return raw ? JSON.parse(raw) : null;
   }
 };
@@ -41,12 +66,32 @@ export const dataApi = {
     if (!APP_CONFIG.USE_MOCK_DATA) {
       throw new Error('Firebase mode is not wired in this repository yet.');
     }
-    if (!localStorage.getItem(LS_KEYS.content)) {
-      setLS(LS_KEYS.content, await loadDefaultContent());
+
+    if (!localStorage.getItem(LS_KEYS.users)) {
+      setLS(LS_KEYS.users, [
+        {
+          uid: USER.uid,
+          fullName: USER.name,
+          email: USER.email,
+          plan: 'premium-mvp',
+          locale: 'en-NG',
+          marketingConsent: false,
+          createdAt: nowIso(),
+          updatedAt: nowIso(),
+          status: 'active'
+        }
+      ]);
     }
+
+    if (!localStorage.getItem(LS_KEYS.content)) setLS(LS_KEYS.content, await loadDefaultContent());
     if (!localStorage.getItem(LS_KEYS.saved)) setLS(LS_KEYS.saved, []);
     if (!localStorage.getItem(LS_KEYS.progress)) setLS(LS_KEYS.progress, []);
     if (!localStorage.getItem(LS_KEYS.requests)) setLS(LS_KEYS.requests, []);
+    if (!localStorage.getItem(LS_KEYS.privacy)) setLS(LS_KEYS.privacy, []);
+  },
+
+  async getUserProfile(uid) {
+    return getLS(LS_KEYS.users).find((row) => row.uid === uid) || null;
   },
 
   async listContent({ category, subcategory } = {}) {
@@ -57,17 +102,35 @@ export const dataApi = {
   },
 
   async listSaved(userId) {
-    const saved = getLS(LS_KEYS.saved).filter((x) => x.userId === userId);
-    const contentById = Object.fromEntries(getLS(LS_KEYS.content).map((c) => [c.id, c]));
-    return saved.map((s) => ({ ...s, content: contentById[s.contentId] })).filter((x) => x.content);
+    const savedDocs = getLS(LS_KEYS.saved)
+      .filter((x) => x.userId === userId)
+      .sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+
+    const contentIds = [...new Set(savedDocs.map((doc) => doc.contentId))];
+    const contentDocs = await batchFetchContentByIds(contentIds);
+    const contentById = Object.fromEntries(contentDocs.map((doc) => [doc.id, doc]));
+
+    return savedDocs.map((savedDoc) => {
+      const content = contentById[savedDoc.contentId] || null;
+      return {
+        ...savedDoc,
+        content,
+        isOrphaned: !content
+      };
+    });
   },
 
   async saveContent({ userId, contentId }) {
     const saved = getLS(LS_KEYS.saved);
     if (!saved.find((x) => x.userId === userId && x.contentId === contentId)) {
-      saved.push({ id: crypto.randomUUID(), userId, contentId, savedAt: new Date().toISOString() });
+      saved.push({ id: crypto.randomUUID(), userId, contentId, savedAt: nowIso() });
       setLS(LS_KEYS.saved, saved);
     }
+  },
+
+  async removeSaved({ userId, savedId }) {
+    const saved = getLS(LS_KEYS.saved).filter((row) => !(row.id === savedId && row.userId === userId));
+    setLS(LS_KEYS.saved, saved);
   },
 
   async addProgress({ userId, contentId, deltaSeconds }) {
@@ -75,14 +138,14 @@ export const dataApi = {
     const existing = progress.find((x) => x.userId === userId && x.contentId === contentId);
     if (existing) {
       existing.progressSeconds += deltaSeconds;
-      existing.updatedAt = new Date().toISOString();
+      existing.updatedAt = nowIso();
     } else {
       progress.push({
         id: crypto.randomUUID(),
         userId,
         contentId,
         progressSeconds: deltaSeconds,
-        updatedAt: new Date().toISOString()
+        updatedAt: nowIso()
       });
     }
     setLS(LS_KEYS.progress, progress);
@@ -98,7 +161,6 @@ export const dataApi = {
   },
 
   async createRequest({ userId, type, phone, location, notes, preferredTime }) {
-  async createRequest({ userId, type, notes, preferredTime }) {
     const requests = getLS(LS_KEYS.requests);
     requests.push({
       id: crypto.randomUUID(),
@@ -109,7 +171,7 @@ export const dataApi = {
       notes,
       preferredTime: preferredTime || null,
       status: 'pending',
-      createdAt: new Date().toISOString()
+      createdAt: nowIso()
     });
     setLS(LS_KEYS.requests, requests);
   },
@@ -127,6 +189,43 @@ export const dataApi = {
     row.notes = notes;
     row.preferredTime = preferredTime || row.preferredTime;
     setLS(LS_KEYS.requests, requests);
+  },
+
+  async requestAccountDeletion({ userId, reason }) {
+    const privacyRequests = getLS(LS_KEYS.privacy);
+    privacyRequests.push({
+      id: crypto.randomUUID(),
+      userId,
+      type: 'delete_account_and_data',
+      status: 'submitted',
+      reason: reason || 'user_requested',
+      createdAt: nowIso()
+    });
+    setLS(LS_KEYS.privacy, privacyRequests);
+
+    setLS(
+      LS_KEYS.saved,
+      getLS(LS_KEYS.saved).filter((row) => row.userId !== userId)
+    );
+    setLS(
+      LS_KEYS.progress,
+      getLS(LS_KEYS.progress).filter((row) => row.userId !== userId)
+    );
+    setLS(
+      LS_KEYS.requests,
+      getLS(LS_KEYS.requests).filter((row) => row.userId !== userId)
+    );
+
+    const users = getLS(LS_KEYS.users).map((row) => {
+      if (row.uid !== userId) return row;
+      return {
+        ...row,
+        status: 'pending_deletion',
+        updatedAt: nowIso(),
+        deletedAt: nowIso()
+      };
+    });
+    setLS(LS_KEYS.users, users);
   },
 
   async seedDefaultContent() {

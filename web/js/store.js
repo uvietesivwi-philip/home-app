@@ -22,6 +22,19 @@ async function loadDefaultContent() {
   return res.json();
 }
 
+function getLS(key, fallback = []) {
+  const raw = localStorage.getItem(key);
+  return raw ? JSON.parse(raw) : fallback;
+}
+
+function setLS(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function sortByDateDesc(rows, key) {
+  return [...rows].sort((a, b) => new Date(b[key]) - new Date(a[key]));
+}
+
 export const authApi = {
   async signInDemo() {
     localStorage.setItem('hh_user', JSON.stringify(USER));
@@ -41,16 +54,26 @@ export const dataApi = {
     if (!APP_CONFIG.USE_MOCK_DATA) {
       throw new Error('Firebase mode is not wired in this repository yet.');
     }
-
-    if (!localStorage.getItem(COLLECTION_KEYS.content)) {
-      setLS(COLLECTION_KEYS.content, await loadDefaultContent());
-    }
-
-    ensureCollectionsInitialized();
+    if (!localStorage.getItem(LS_KEYS.content)) setLS(LS_KEYS.content, await loadDefaultContent());
+    if (!localStorage.getItem(LS_KEYS.saved)) setLS(LS_KEYS.saved, []);
+    if (!localStorage.getItem(LS_KEYS.progress)) setLS(LS_KEYS.progress, []);
+    if (!localStorage.getItem(LS_KEYS.requests)) setLS(LS_KEYS.requests, []);
   },
 
-  async listContent(filters = {}) {
-    return contentRepository.listContent(filters);
+  async listContent({ category, subcategory } = {}) {
+    let rows = getLS(LS_KEYS.content);
+    if (category && category !== 'all') rows = rows.filter((x) => x.category === category);
+    if (subcategory && subcategory !== 'all') rows = rows.filter((x) => x.subcategory === subcategory);
+    return sortByDateDesc(rows, 'createdAt');
+  },
+
+  async getContentById(contentId) {
+    if (!contentId) return null;
+    return getLS(LS_KEYS.content).find((x) => x.id === contentId) || null;
+  },
+
+  async listSuggestedContent(limit = 2) {
+    return sortByDateDesc(getLS(LS_KEYS.content), 'createdAt').slice(0, limit);
   },
 
   async listSaved(userId) {
@@ -70,20 +93,43 @@ export const dataApi = {
     await contentProgressRepository.upsertProgress({ userId, contentId, progressSeconds: nextProgress });
   },
 
-  async continueWatching(userId) {
-    const progress = await contentProgressRepository.getResumeItem(userId);
-    if (!progress) return null;
-
-    const content = await contentRepository.getById(progress.contentId);
-    return content ? { progress, content } : null;
+  async getLatestProgress(userId) {
+    const rows = sortByDateDesc(
+      getLS(LS_KEYS.progress).filter((x) => x.userId === userId),
+      'updatedAt'
+    ).slice(0, 1);
+    return rows[0] || null;
   },
 
-  async createRequest(payload) {
-    await requestRepository.submit(payload);
+  async continueWatching(userId) {
+    const progress = await this.getLatestProgress(userId);
+    if (!progress) return { state: 'empty' };
+    if (!progress.contentId || typeof progress.progressSeconds !== 'number') {
+      return { state: 'stale', progress, content: null };
+    }
+    const content = await this.getContentById(progress.contentId);
+    if (!content) return { state: 'deleted', progress, content: null };
+    return { state: 'ready', progress, content };
+  },
+
+  async createRequest({ userId, type, phone, location, notes, preferredTime }) {
+    const requests = getLS(LS_KEYS.requests);
+    requests.push({
+      id: crypto.randomUUID(),
+      userId,
+      type,
+      phone: phone || null,
+      location: location || null,
+      notes,
+      preferredTime: preferredTime || null,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    });
+    setLS(LS_KEYS.requests, requests);
   },
 
   async listRequests(userId) {
-    return requestRepository.listByUser(userId);
+    return sortByDateDesc(getLS(LS_KEYS.requests).filter((x) => x.userId === userId), 'createdAt');
   },
 
   async updateRequestNotes({ userId, requestId, notes, preferredTime }) {
@@ -91,49 +137,7 @@ export const dataApi = {
   },
 
   async seedDefaultContent() {
-    const content = await loadDefaultContent();
-    setLS(COLLECTION_KEYS.content, content);
-  },
-
-  // Firestore-spec query methods.
-  async getResumeProgress(userId) {
-    return contentProgressRepository.getResumeItem(userId);
-  },
-
-  async getSuggestedContent(limitCount = 2) {
-    return contentRepository.listSuggestedContent(limitCount);
-  },
-
-  async listCookAfrican() {
-    return contentRepository.listCookAfrican();
-  },
-
-  async listCookContinental() {
-    return contentRepository.listCookContinental();
-  },
-
-  async listCareBySubcategory(subcategory) {
-    return contentRepository.listCareBySubcategory(subcategory);
-  },
-
-  async listDiyGuides() {
-    return contentRepository.listDiyGuides();
-  },
-
-  async listFamilyParentActivities() {
-    return contentRepository.listFamilyParentActivities();
-  },
-
-  async listFamilyKidStories() {
-    return contentRepository.listFamilyKidStories();
-  },
-
-  async submitServiceRequest(payload) {
-    return requestRepository.submit(payload);
-  },
-
-  async upsertContentProgress({ userId, contentId, progressSeconds }) {
-    return contentProgressRepository.upsertProgress({ userId, contentId, progressSeconds });
+    setLS(LS_KEYS.content, await loadDefaultContent());
   }
 };
 

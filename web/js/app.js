@@ -16,6 +16,7 @@ const els = {
   refreshContent: document.getElementById('refreshContent'),
   savedList: document.getElementById('savedList'),
   continueBox: document.getElementById('continueBox'),
+  suggestedList: document.getElementById('suggestedList'),
   requestForm: document.getElementById('requestForm'),
   requestList: document.getElementById('requestList'),
   savedCount: document.getElementById('savedCount'),
@@ -127,6 +128,34 @@ async function renderRequests() {
   els.requestList.innerHTML = rows.length
     ? rows.map((row) => `<article class="item"><strong>${row.type}</strong><p>${row.notes || '(no notes)'}</p></article>`).join('')
     : '<p class="small">No requests yet.</p>';
+}
+
+function renderCategoryJourney() {
+  els.categoryGrid.innerHTML = '';
+  Object.keys(taxonomy).forEach((category) => {
+    els.categoryGrid.appendChild(createPill(category.toUpperCase(), state.category === category, async () => {
+      state.category = category;
+      state.subcategory = null;
+      renderSubcategories();
+      await renderContent();
+    }));
+  });
+}
+
+function renderSubcategories() {
+  els.subcategoryGrid.innerHTML = '';
+  els.subcategoryGrid.appendChild(createPill('ALL', state.subcategory === null, async () => {
+    state.subcategory = null;
+    renderSubcategories();
+    await renderContent();
+  }));
+  (taxonomy[state.category] || []).forEach((sub) => {
+    els.subcategoryGrid.appendChild(createPill(sub, state.subcategory === sub, async () => {
+      state.subcategory = sub;
+      renderSubcategories();
+      await renderContent();
+    }));
+  });
 }
 
 async function refreshAll() {

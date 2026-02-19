@@ -21,6 +21,14 @@ service cloud.firestore {
       return request.resource.data.userId == resource.data.userId;
     }
 
+    function isOwnerCreate() {
+      return isSignedIn() && ownsNewDoc();
+    }
+
+    function isOwnerExisting() {
+      return isSignedIn() && ownsExistingDoc();
+    }
+
     // Users can only read/write their own profile document.
     match /users/{userId} {
       allow read, write: if isSelf(userId);
@@ -34,44 +42,44 @@ service cloud.firestore {
 
     // User-specific saved items.
     match /savedContent/{savedId} {
-      allow create: if isSignedIn()
-                    && ownsNewDoc()
+      allow create: if isOwnerCreate()
                     && request.resource.data.contentId is string
                     && request.resource.data.savedAt is timestamp;
-      allow read: if isSignedIn() && ownsExistingDoc();
-      allow update: if isSignedIn()
-                    && ownsExistingDoc()
+      allow read: if isOwnerExisting();
+      allow update: if isOwnerExisting()
                     && ownerIsImmutable()
                     && request.resource.data.contentId == resource.data.contentId;
-      allow delete: if false;
+      allow delete: if isOwnerExisting();
     }
 
     // User-specific content progress (resume point, etc.).
     match /contentProgress/{progressId} {
-      allow create: if isSignedIn()
-                    && ownsNewDoc()
+      allow create: if isOwnerCreate()
                     && request.resource.data.contentId is string
                     && request.resource.data.progressSeconds is number
                     && request.resource.data.updatedAt is timestamp;
-      allow read: if isSignedIn() && ownsExistingDoc();
-      allow update: if isSignedIn()
-                    && ownsExistingDoc()
+      allow read: if isOwnerExisting();
+      allow update: if isOwnerExisting()
                     && ownerIsImmutable()
                     && request.resource.data.contentId == resource.data.contentId
                     && request.resource.data.progressSeconds is number;
-      allow delete: if false;
+      allow delete: if isOwnerExisting();
     }
 
     // Service requests: user can create and manage only their own requests.
     match /requests/{requestId} {
-      allow create: if isSignedIn()
-                    && ownsNewDoc()
+      allow create: if isOwnerCreate()
+                    && request.resource.data.keys().hasOnly([
+                      "userId",
+                      "type",
+                      "status",
+                      "createdAt"
+                    ])
                     && request.resource.data.type in ["maid", "driver", "escort"]
                     && request.resource.data.status == "pending"
                     && request.resource.data.createdAt is timestamp;
-      allow read: if isSignedIn() && ownsExistingDoc();
-      allow update: if isSignedIn()
-                    && ownsExistingDoc()
+      allow read: if isOwnerExisting();
+      allow update: if isOwnerExisting()
                     && ownerIsImmutable()
                     && request.resource.data.type == resource.data.type
                     && request.resource.data.createdAt == resource.data.createdAt

@@ -1,12 +1,21 @@
 import { APP_CONFIG } from './config.js';
+import {
+  COLLECTION_KEYS,
+  ContentProgressRepository,
+  ContentRepository,
+  RequestRepository,
+  SavedContentRepository,
+  ensureCollectionsInitialized,
+  getLS,
+  setLS
+} from './domain-repositories.js';
 
 const USER = { uid: 'demo-user-1', name: 'Demo User' };
-const LS_KEYS = {
-  content: 'hh_content',
-  saved: 'hh_saved',
-  progress: 'hh_progress',
-  requests: 'hh_requests'
-};
+
+const contentRepository = new ContentRepository();
+const savedContentRepository = new SavedContentRepository();
+const contentProgressRepository = new ContentProgressRepository();
+const requestRepository = new RequestRepository();
 
 async function loadDefaultContent() {
   const res = await fetch('./data/default-content.json');
@@ -45,9 +54,7 @@ export const dataApi = {
     if (!APP_CONFIG.USE_MOCK_DATA) {
       throw new Error('Firebase mode is not wired in this repository yet.');
     }
-    if (!localStorage.getItem(LS_KEYS.content)) {
-      setLS(LS_KEYS.content, await loadDefaultContent());
-    }
+    if (!localStorage.getItem(LS_KEYS.content)) setLS(LS_KEYS.content, await loadDefaultContent());
     if (!localStorage.getItem(LS_KEYS.saved)) setLS(LS_KEYS.saved, []);
     if (!localStorage.getItem(LS_KEYS.progress)) setLS(LS_KEYS.progress, []);
     if (!localStorage.getItem(LS_KEYS.requests)) setLS(LS_KEYS.requests, []);
@@ -73,44 +80,39 @@ export const dataApi = {
   },
 
   async listSaved(userId) {
-    const saved = getLS(LS_KEYS.saved).filter((x) => x.userId === userId);
-    const contentById = Object.fromEntries(getLS(LS_KEYS.content).map((c) => [c.id, c]));
-    return saved.map((s) => ({ ...s, content: contentById[s.contentId] })).filter((x) => x.content);
+    const saved = await savedContentRepository.listByUser(userId);
+    const content = await contentRepository.listContent();
+    const contentById = Object.fromEntries(content.map((x) => [x.id, x]));
+    return saved.map((x) => ({ ...x, content: contentById[x.contentId] })).filter((x) => x.content);
   },
 
   async saveContent({ userId, contentId }) {
-    const saved = getLS(LS_KEYS.saved);
-    if (!saved.find((x) => x.userId === userId && x.contentId === contentId)) {
-      saved.push({ id: crypto.randomUUID(), userId, contentId, savedAt: new Date().toISOString() });
-      setLS(LS_KEYS.saved, saved);
-    }
+    await savedContentRepository.save({ userId, contentId });
   },
 
   async addProgress({ userId, contentId, deltaSeconds }) {
-    const progress = getLS(LS_KEYS.progress);
-    const existing = progress.find((x) => x.userId === userId && x.contentId === contentId);
-    if (existing) {
-      existing.progressSeconds += deltaSeconds;
-      existing.updatedAt = new Date().toISOString();
-    } else {
-      progress.push({
-        id: crypto.randomUUID(),
-        userId,
-        contentId,
-        progressSeconds: deltaSeconds,
-        updatedAt: new Date().toISOString()
-      });
-    }
-    setLS(LS_KEYS.progress, progress);
+    const existing = await contentProgressRepository.getByUserAndContent(userId, contentId);
+    const nextProgress = (existing?.progressSeconds || 0) + deltaSeconds;
+    await contentProgressRepository.upsertProgress({ userId, contentId, progressSeconds: nextProgress });
+  },
+
+  async getLatestProgress(userId) {
+    const rows = sortByDateDesc(
+      getLS(LS_KEYS.progress).filter((x) => x.userId === userId),
+      'updatedAt'
+    ).slice(0, 1);
+    return rows[0] || null;
   },
 
   async continueWatching(userId) {
-    const progress = getLS(LS_KEYS.progress)
-      .filter((x) => x.userId === userId)
-      .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-    if (!progress.length) return null;
-    const content = getLS(LS_KEYS.content).find((x) => x.id === progress[0].contentId);
-    return content ? { progress: progress[0], content } : null;
+    const progress = await this.getLatestProgress(userId);
+    if (!progress) return { state: 'empty' };
+    if (!progress.contentId || typeof progress.progressSeconds !== 'number') {
+      return { state: 'stale', progress, content: null };
+    }
+    const content = await this.getContentById(progress.contentId);
+    if (!content) return { state: 'deleted', progress, content: null };
+    return { state: 'ready', progress, content };
   },
 
   async createRequest({ userId, type, phone, location, notes, preferredTime }) {
@@ -130,9 +132,7 @@ export const dataApi = {
   },
 
   async listRequests(userId) {
-    return getLS(LS_KEYS.requests)
-      .filter((x) => x.userId === userId)
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return sortByDateDesc(getLS(LS_KEYS.requests).filter((x) => x.userId === userId), 'createdAt');
   },
 
   async updateRequestNotes({ userId, requestId, notes, preferredTime }) {
@@ -144,3 +144,5 @@ export const dataApi = {
     setLS(LS_KEYS.requests, requests);
   }
 };
+
+export const __mockStorage = { getLS };

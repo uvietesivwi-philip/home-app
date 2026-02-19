@@ -8,16 +8,14 @@
   </head>
   <body>
     <header class="hero">
-      <video class="hero-video" autoplay muted loop playsinline poster="https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=1400&q=80">
+      <video class="hero-video" autoplay muted loop playsinline>
         <source src="https://cdn.coverr.co/videos/coverr-a-mother-and-daughter-cooking-1607618211448?download=1080p" type="video/mp4" />
       </video>
       <div class="hero-overlay"></div>
       <div class="hero-content">
         <p class="eyebrow">HOME HELP • PREMIUM MVP</p>
         <h1>Your family lifestyle hub — learn, plan, and request trusted support.</h1>
-        <p class="hero-copy">
-          Beautiful, practical guidance for cooking, childcare, home maintenance, and family bonding — with on-demand service requests when life gets busy.
-        </p>
+        <p class="hero-copy">Beautiful, practical guidance for cooking, childcare, home maintenance, and family bonding.</p>
         <div class="hero-actions">
           <button id="loginBtn">Sign In Demo User</button>
           <button id="logoutBtn" class="secondary">Sign Out</button>
@@ -28,14 +26,6 @@
     <main class="layout">
       <aside class="panel sticky glass">
         <h2>Guided journey</h2>
-        <p class="subtle">A premium step-by-step flow designed for real homes.</p>
-        <ol class="journey-list">
-          <li><span>1</span> Discover curated content experiences</li>
-          <li><span>2</span> Save your personal home playbook</li>
-          <li><span>3</span> Track routines and build consistency</li>
-          <li><span>4</span> Request trusted human support</li>
-        </ol>
-
         <div class="stat-grid">
           <article>
             <p class="label">Saved Guides</p>
@@ -51,26 +41,27 @@
           <h3>Continue journey</h3>
           <div id="continueBox" class="list"></div>
         </section>
+
+        <section>
+          <h3>Suggested for you</h3>
+          <div id="suggestedList" class="list"></div>
+        </section>
       </aside>
 
       <section class="stack">
         <section class="panel glass">
           <h2>Experience tracks</h2>
-          <p class="subtle">Navigate by life moment and family need.</p>
           <div id="categoryGrid" class="pill-grid"></div>
           <div id="subcategoryGrid" class="pill-grid"></div>
         </section>
 
         <section class="panel glass">
           <div class="panel-head">
-            <div>
-              <h2>Content studio</h2>
-              <p class="subtle">Editorial-quality tutorials, stories, and routines.</p>
-            </div>
+            <h2>Content studio</h2>
             <button id="refreshContent" class="secondary">Refresh</button>
           </div>
           <div class="filters">
-            <input id="searchInput" placeholder="Search: jollof, bedtime, maintenance checklist..." />
+            <input id="searchInput" placeholder="Search content..." />
             <select id="sortSelect">
               <option value="newest">Newest</option>
               <option value="oldest">Oldest</option>
@@ -93,7 +84,6 @@
 
         <section class="panel glass">
           <h2>Request support</h2>
-          <p class="subtle">Book practical services with clear details for fast response.</p>
           <form id="requestForm" class="form-grid">
             <label>Service type
               <select name="type" required>
@@ -103,82 +93,22 @@
               </select>
             </label>
             <label>Contact phone
-              <input type="tel" name="phone" required placeholder="e.g. +234..." />
+              <input type="tel" name="phone" required />
             </label>
             <label>Location
-              <input type="text" name="location" required placeholder="Neighborhood / estate" />
+              <input type="text" name="location" required />
             </label>
             <label>Preferred time
               <input type="datetime-local" name="preferredTime" />
             </label>
             <label class="full">Request details
-              <textarea name="notes" rows="4" placeholder="Tell us exactly what kind of help you need"></textarea>
+              <textarea name="notes" rows="4"></textarea>
             </label>
             <button type="submit">Submit Request</button>
           </form>
-
           <h3>My requests</h3>
           <div id="requestList" class="list"></div>
         </section>
-    <title>Home Help MVP</title>
-    <link rel="stylesheet" href="./css/style.css" />
-  </head>
-  <body>
-    <header>
-      <h1>Home Help MVP</h1>
-      <p>Cooking, childcare, DIY, family, and services in one app.</p>
-      <div class="actions">
-        <button id="loginBtn">Sign In Demo User</button>
-        <button id="logoutBtn" class="secondary">Sign Out</button>
-      </div>
-    </header>
-
-    <main>
-      <section class="card">
-        <h2>Categories</h2>
-        <div id="categoryGrid" class="grid"></div>
-      </section>
-
-      <section class="card">
-        <h2>Content</h2>
-        <div class="filters">
-          <select id="categoryFilter"></select>
-          <select id="subcategoryFilter"></select>
-          <button id="refreshContent" class="secondary">Refresh</button>
-        </div>
-        <div id="contentList" class="list"></div>
-      </section>
-
-      <section class="card">
-        <h2>Saved Content</h2>
-        <div id="savedList" class="list"></div>
-      </section>
-
-      <section class="card">
-        <h2>Continue Watching</h2>
-        <div id="continueBox" class="list"></div>
-      </section>
-
-      <section class="card">
-        <h2>Request Service</h2>
-        <form id="requestForm">
-          <label>Type
-            <select name="type" required>
-              <option value="maid">Maid</option>
-              <option value="driver">Driver</option>
-              <option value="escort">Security Escort</option>
-            </select>
-          </label>
-          <label>Notes
-            <textarea name="notes" rows="3" placeholder="Describe your needs"></textarea>
-          </label>
-          <label>Preferred time
-            <input type="datetime-local" name="preferredTime" />
-          </label>
-          <button type="submit">Submit Request</button>
-        </form>
-        <h3>My Requests</h3>
-        <div id="requestList" class="list"></div>
       </section>
     </main>
 
@@ -189,7 +119,6 @@
           <div class="media-gradient"></div>
           <p class="chip media-chip"></p>
         </div>
-
         <div class="content-card-body">
           <div class="content-card-head">
             <p class="chip meta"></p>
@@ -204,13 +133,6 @@
             <button class="saveBtn">Save</button>
             <button class="progressBtn secondary">+30s Progress</button>
           </div>
-      <article class="item">
-        <h3 class="title"></h3>
-        <p class="summary"></p>
-        <p class="meta"></p>
-        <div class="actions">
-          <button class="saveBtn">Save</button>
-          <button class="progressBtn secondary">+30s Progress</button>
         </div>
       </article>
     </template>

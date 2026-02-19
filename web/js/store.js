@@ -22,6 +22,48 @@ function setLS(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function getProgressDocId(userId, contentId) {
+  return `${userId}_${contentId}`;
+}
+
+function writeProgress({ userId, contentId, progressSeconds, allowRestart = false }) {
+  const progress = getLS(LS_KEYS.progress);
+  const id = getProgressDocId(userId, contentId);
+  const nowIso = new Date().toISOString();
+  const normalizedProgress = Math.max(0, Math.floor(progressSeconds || 0));
+  const index = progress.findIndex((row) => row.id === id || (row.userId === userId && row.contentId === contentId));
+
+  if (index >= 0) {
+    const existing = progress[index];
+    const nextProgress = normalizedProgress;
+
+    if (!allowRestart && nextProgress < existing.progressSeconds) {
+      return { persisted: false, reason: 'regression_blocked', row: existing };
+    }
+
+    progress[index] = {
+      id,
+      userId,
+      contentId,
+      progressSeconds: nextProgress,
+      updatedAt: nowIso
+    };
+    setLS(LS_KEYS.progress, progress);
+    return { persisted: true, reason: 'updated', row: progress[index] };
+  }
+
+  const row = {
+    id,
+    userId,
+    contentId,
+    progressSeconds: normalizedProgress,
+    updatedAt: nowIso
+  };
+  progress.push(row);
+  setLS(LS_KEYS.progress, progress);
+  return { persisted: true, reason: 'created', row };
+}
+
 export const authApi = {
   async signInDemo() {
     localStorage.setItem('hh_user', JSON.stringify(USER));
@@ -72,20 +114,71 @@ export const dataApi = {
 
   async addProgress({ userId, contentId, deltaSeconds }) {
     const progress = getLS(LS_KEYS.progress);
-    const existing = progress.find((x) => x.userId === userId && x.contentId === contentId);
-    if (existing) {
-      existing.progressSeconds += deltaSeconds;
-      existing.updatedAt = new Date().toISOString();
-    } else {
-      progress.push({
-        id: crypto.randomUUID(),
+    const id = getProgressDocId(userId, contentId);
+    const existing = progress.find((x) => x.id === id || (x.userId === userId && x.contentId === contentId));
+    const base = existing ? existing.progressSeconds : 0;
+    return writeProgress({
+      userId,
+      contentId,
+      progressSeconds: base + Math.max(0, Math.floor(deltaSeconds || 0))
+    });
+  },
+
+  async setProgress({ userId, contentId, progressSeconds, allowRestart = false }) {
+    return writeProgress({ userId, contentId, progressSeconds, allowRestart });
+  },
+
+  createProgressUpdater({ userId, contentId, getProgressSeconds, intervalSeconds = 15, allowRestart = false }) {
+    let timer = null;
+    let lastWrittenProgress = null;
+
+    const flush = ({ force = false, restart = false } = {}) => {
+      const current = Math.max(0, Math.floor(getProgressSeconds() || 0));
+      if (!force && lastWrittenProgress !== null && current === lastWrittenProgress) return;
+      const result = writeProgress({
         userId,
         contentId,
-        progressSeconds: deltaSeconds,
-        updatedAt: new Date().toISOString()
+        progressSeconds: current,
+        allowRestart: restart || allowRestart
       });
-    }
-    setLS(LS_KEYS.progress, progress);
+      if (result.persisted) lastWrittenProgress = result.row.progressSeconds;
+    };
+
+    const onVisibilityChange = () => {
+      if (document.hidden) flush({ force: true });
+    };
+
+    const onPageExit = () => {
+      flush({ force: true });
+    };
+
+    return {
+      start() {
+        if (!timer) {
+          timer = window.setInterval(() => flush(), Math.max(1, intervalSeconds) * 1000);
+        }
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        window.addEventListener('pagehide', onPageExit);
+        window.addEventListener('beforeunload', onPageExit);
+      },
+      pause() {
+        flush({ force: true });
+      },
+      flush,
+      restart() {
+        flush({ force: true, restart: true });
+      },
+      stop() {
+        if (timer) {
+          clearInterval(timer);
+          timer = null;
+        }
+        flush({ force: true });
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+        window.removeEventListener('pagehide', onPageExit);
+        window.removeEventListener('beforeunload', onPageExit);
+      }
+    };
   },
 
   async continueWatching(userId) {
@@ -98,7 +191,6 @@ export const dataApi = {
   },
 
   async createRequest({ userId, type, phone, location, notes, preferredTime }) {
-  async createRequest({ userId, type, notes, preferredTime }) {
     const requests = getLS(LS_KEYS.requests);
     requests.push({
       id: crypto.randomUUID(),

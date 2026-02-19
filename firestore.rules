@@ -5,6 +5,13 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.admin == true
+        || (request.auth.token.roles is list && request.auth.token.roles.hasAny(['admin']))
+      );
+    }
+
     function isSelf(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
@@ -25,65 +32,61 @@ service cloud.firestore {
       return request.resource.data.userId == resource.data.userId;
     }
 
-    // Users can only read/write their own profile document.
     match /users/{userId} {
       allow read, write: if isSelf(userId);
     }
 
-    // App content is readable by signed-in users and writable by admins only.
-    match /content/{contentId} {
+    match /taxonomy/{docId} {
       allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /content/{contentId} {
+      allow read: if isSignedIn() && (resource.data.status == 'published' || isAdmin());
       allow create, update, delete: if isAdmin();
     }
 
-    // User-specific saved items.
     match /savedContent/{savedId} {
-      allow create: if isSignedIn()
-                    && ownsNewDoc()
+      allow create: if isOwnerCreate()
                     && request.resource.data.contentId is string
                     && request.resource.data.savedAt is timestamp;
-      allow read: if isSignedIn() && ownsExistingDoc();
-      allow update: if isSignedIn()
-                    && ownsExistingDoc()
+      allow read: if isOwnerExisting();
+      allow update: if isOwnerExisting()
                     && ownerIsImmutable()
                     && request.resource.data.contentId == resource.data.contentId;
-      allow delete: if false;
+      allow delete: if isOwnerExisting();
     }
 
-    // User-specific content progress (resume point, etc.).
     match /contentProgress/{progressId} {
-      allow create: if isSignedIn()
-                    && ownsNewDoc()
+      allow create: if isOwnerCreate()
                     && request.resource.data.contentId is string
                     && request.resource.data.progressSeconds is number
                     && request.resource.data.updatedAt is timestamp;
-      allow read: if isSignedIn() && ownsExistingDoc();
-      allow update: if isSignedIn()
-                    && ownsExistingDoc()
+      allow read: if isOwnerExisting();
+      allow update: if isOwnerExisting()
                     && ownerIsImmutable()
                     && request.resource.data.contentId == resource.data.contentId
                     && request.resource.data.progressSeconds is number;
-      allow delete: if false;
+      allow delete: if isOwnerExisting();
     }
 
-    // Service requests: user can create and manage only their own requests.
-    // Admins may read/update for operational workflows.
     match /requests/{requestId} {
-      allow create: if isSignedIn()
-                    && ownsNewDoc()
+      allow create: if isOwnerCreate()
+                    && request.resource.data.keys().hasOnly([
+                      "userId",
+                      "type",
+                      "status",
+                      "createdAt"
+                    ])
                     && request.resource.data.type in ["maid", "driver", "escort"]
                     && request.resource.data.status == "pending"
                     && request.resource.data.createdAt is timestamp;
-      allow read: if isSignedIn() && (ownsExistingDoc() || isAdmin());
-      allow update: if isSignedIn()
-                    && (
-                      (ownsExistingDoc()
-                        && ownerIsImmutable()
-                        && request.resource.data.type == resource.data.type
-                        && request.resource.data.createdAt == resource.data.createdAt
-                        && request.resource.data.status == resource.data.status)
-                      || isAdmin()
-                    );
+      allow read: if isOwnerExisting();
+      allow update: if isOwnerExisting()
+                    && ownerIsImmutable()
+                    && request.resource.data.type == resource.data.type
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && request.resource.data.status == resource.data.status;
       allow delete: if false;
     }
   }

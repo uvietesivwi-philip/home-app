@@ -339,6 +339,19 @@ export const dataApi = {
     setLS(LS_KEYS.users, users);
   },
 
+  async createParentalConsentPlaceholder({ userId, childAge, jurisdiction }) {
+    const rows = getLS(LS_KEYS.parentalConsent);
+    rows.push({
+      id: crypto.randomUUID(),
+      userId,
+      childAge,
+      jurisdiction,
+      status: 'placeholder_pending_verification',
+      createdAt: new Date().toISOString()
+    });
+    setLS(LS_KEYS.parentalConsent, rows);
+  },
+
   async seedDefaultContent() {
     requireAdminClaim();
     const content = await loadDefaultContent();

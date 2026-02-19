@@ -1,4 +1,13 @@
+import { APP_CONFIG } from './config.js';
 import { authApi, dataApi } from './store.js';
+import {
+  AGE_CATEGORIES,
+  getAgeCategory,
+  getPolicyContext,
+  isRequestTypeAllowed,
+  requiresParentalConsent,
+  getRestrictionNotice
+} from './policy.js';
 
 const taxonomy = {
   cook: ['african', 'continental'],
@@ -6,6 +15,12 @@ const taxonomy = {
   diy: ['decor', 'maintenance'],
   family: ['parents', 'kids']
 };
+
+const REQUEST_TYPES = [
+  { value: 'maid', label: 'Maid' },
+  { value: 'driver', label: 'Driver' },
+  { value: 'escort', label: 'Security Escort' }
+];
 
 const els = {
   loginBtn: document.getElementById('loginBtn'),
@@ -21,6 +36,7 @@ const els = {
   savedList: document.getElementById('savedList'),
   continueBox: document.getElementById('continueBox'),
   requestForm: document.getElementById('requestForm'),
+  requestType: document.getElementById('requestType'),
   requestList: document.getElementById('requestList'),
   savedCount: document.getElementById('savedCount'),
   requestCount: document.getElementById('requestCount'),
@@ -62,6 +78,28 @@ function sortRows(rows) {
     out.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }
   return out;
+}
+
+function refreshPolicyUI() {
+  const ageCategory = getAgeCategory(state.age);
+  els.ageCategoryPill.textContent = `Age category: ${ageCategory.replace('_', ' ')}`;
+
+  const policyNotice = getRestrictionNotice(state.policyContext);
+  els.requestPolicyNotice.textContent = policyNotice || 'All request types are currently enabled.';
+
+  const parentalRequired = requiresParentalConsent(ageCategory, state.policyContext);
+  els.parentalConsentBox.hidden = !parentalRequired;
+  els.policyDisclosure.innerHTML = `
+    Privacy & disclosures: by using request workflows you agree to data handling described in
+    <a href="${APP_CONFIG.PRIVACY.policyUrl}" target="_blank" rel="noreferrer">Privacy Policy</a>
+    and <a href="${APP_CONFIG.PRIVACY.childrenNoticeUrl}" target="_blank" rel="noreferrer">Children's Privacy Notice</a>.
+    Contact <a href="mailto:${APP_CONFIG.PRIVACY.supportEmail}">${APP_CONFIG.PRIVACY.supportEmail}</a> for privacy requests.
+  `;
+
+  els.requestType.innerHTML = REQUEST_TYPES.map((type) => {
+    const disabled = !isRequestTypeAllowed(type.value, state.policyContext);
+    return `<option value="${type.value}" ${disabled ? 'disabled' : ''}>${type.label}${disabled ? ' (Unavailable)' : ''}</option>`;
+  }).join('');
 }
 
 async function getVisibleContent() {
@@ -184,7 +222,7 @@ async function renderSaved() {
 
 async function renderContinueWatching() {
   if (!state.currentUser) {
-    els.continueBox.innerHTML = '<p class="small">Sign in to track progress and resume content.</p>';
+    els.continueBox.innerHTML = '<p class="small">Sign in to track progress.</p>';
     return;
   }
 
@@ -284,11 +322,33 @@ els.sortSelect.addEventListener('change', async (event) => {
   await renderContent();
 });
 
+els.ageInput.addEventListener('input', () => {
+  state.age = Number(els.ageInput.value || 0);
+  refreshPolicyUI();
+});
+
+els.consentBtn.addEventListener('click', async () => {
+  ensureSignedIn();
+  await dataApi.createParentalConsentPlaceholder({
+    userId: state.currentUser.uid,
+    childAge: state.age,
+    jurisdiction: state.policyContext.jurisdiction
+  });
+  els.parentalConsentBox.querySelector('.small').textContent =
+    'Parental consent placeholder created. Verification flow to be integrated with KYC provider.';
+});
+
 els.refreshContent.addEventListener('click', renderContent);
 
 els.requestForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   ensureSignedIn();
+
+  const ageCategory = getAgeCategory(state.age);
+  if (requiresParentalConsent(ageCategory, state.policyContext)) {
+    throw new Error('Parental consent is required for under-13 users in this region before request submission.');
+  }
+
   const fd = new FormData(els.requestForm);
   await dataApi.createRequest({
     userId: state.currentUser.uid,
@@ -296,9 +356,12 @@ els.requestForm.addEventListener('submit', async (event) => {
     phone: fd.get('phone'),
     location: fd.get('location'),
     notes: fd.get('notes'),
-    preferredTime: fd.get('preferredTime')
+    preferredTime: fd.get('preferredTime'),
+    ageCategory,
+    policyContext: state.policyContext
   });
   els.requestForm.reset();
+  refreshPolicyUI();
   await renderRequests();
 });
 

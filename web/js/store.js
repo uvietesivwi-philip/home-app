@@ -31,39 +31,24 @@ function setLS(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-function normalizeError(code, message) {
-  const error = new Error(message);
-  error.code = code;
-  return error;
+function getAuthenticatedUserId() {
+  const currentUser = authApi.getCurrentUser();
+  return currentUser?.uid || null;
 }
 
-export function resolveStorageUrl(inputPath) {
-  if (!inputPath || typeof inputPath !== 'string') return null;
-  const path = inputPath.trim();
-  if (!path) return null;
-
-  if (path.startsWith('http://') || path.startsWith('https://')) {
-    return path;
+function assertAuthenticatedUser(userId) {
+  const authenticatedUserId = getAuthenticatedUserId();
+  if (!authenticatedUserId) {
+    throw new Error('Sign in to perform this action.');
   }
-
-  if (path.startsWith('gs://')) {
-    const bucket = APP_CONFIG.FIREBASE.storageBucket;
-    if (!bucket) return null;
-    const withoutScheme = path.replace(/^gs:\/\//, '');
-    const objectPath = withoutScheme.includes('/') ? withoutScheme.split('/').slice(1).join('/') : '';
-    if (!objectPath) return null;
-    return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}/o/${encodeURIComponent(objectPath)}?alt=media`;
+  if (userId !== authenticatedUserId) {
+    throw new Error('Provided userId does not match authenticated user.');
   }
+  return authenticatedUserId;
+}
 
-  if (path.startsWith('/')) {
-    return `${window.location.origin}${path}`;
-  }
-
-  if (path.startsWith('./') || path.startsWith('../')) {
-    return new URL(path, window.location.href).toString();
-  }
-
-  return null;
+function buildSavedId(userId, contentId) {
+  return `${userId}_${contentId}`;
 }
 
 export const authApi = {
@@ -130,22 +115,64 @@ export const dataApi = {
     return saved.map((x) => ({ ...x, content: contentById[x.contentId] })).filter((x) => x.content);
   },
 
+  async isContentSaved({ userId, contentId }) {
+    const authenticatedUserId = assertAuthenticatedUser(userId);
+    const savedId = buildSavedId(authenticatedUserId, contentId);
+    const saved = getLS(LS_KEYS.saved);
+    return saved.some((x) => x.id === savedId || (x.userId === authenticatedUserId && x.contentId === contentId));
+  },
+
   async saveContent({ userId, contentId }) {
-    await savedContentRepository.save({ userId, contentId });
+    const authenticatedUserId = assertAuthenticatedUser(userId);
+    const savedId = buildSavedId(authenticatedUserId, contentId);
+    const saved = getLS(LS_KEYS.saved);
+
+    const existing = saved.find((x) => x.id === savedId || (x.userId === authenticatedUserId && x.contentId === contentId));
+    if (existing) {
+      return existing;
+    }
+
+    const record = {
+      id: savedId,
+      userId: authenticatedUserId,
+      contentId,
+      savedAt: new Date().toISOString()
+    };
+    saved.push(record);
+    setLS(LS_KEYS.saved, saved);
+    return record;
+  },
+
+  async unsaveContent({ userId, contentId }) {
+    const authenticatedUserId = assertAuthenticatedUser(userId);
+    const savedId = buildSavedId(authenticatedUserId, contentId);
+    const saved = getLS(LS_KEYS.saved);
+
+    const filtered = saved.filter((x) => !(x.id === savedId || (x.userId === authenticatedUserId && x.contentId === contentId)));
+    if (filtered.length !== saved.length) {
+      setLS(LS_KEYS.saved, filtered);
+      return true;
+    }
+    return false;
   },
 
   async addProgress({ userId, contentId, deltaSeconds }) {
-    const existing = await contentProgressRepository.getByUserAndContent(userId, contentId);
-    const nextProgress = (existing?.progressSeconds || 0) + deltaSeconds;
-    await contentProgressRepository.upsertProgress({ userId, contentId, progressSeconds: nextProgress });
-  },
-
-  async getLatestProgress(userId) {
-    const rows = sortByDateDesc(
-      getLS(LS_KEYS.progress).filter((x) => x.userId === userId),
-      'updatedAt'
-    ).slice(0, 1);
-    return rows[0] || null;
+    const authenticatedUserId = assertAuthenticatedUser(userId);
+    const progress = getLS(LS_KEYS.progress);
+    const existing = progress.find((x) => x.userId === authenticatedUserId && x.contentId === contentId);
+    if (existing) {
+      existing.progressSeconds += deltaSeconds;
+      existing.updatedAt = new Date().toISOString();
+    } else {
+      progress.push({
+        id: crypto.randomUUID(),
+        userId: authenticatedUserId,
+        contentId,
+        progressSeconds: deltaSeconds,
+        updatedAt: new Date().toISOString()
+      });
+    }
+    setLS(LS_KEYS.progress, progress);
   },
 
   async continueWatching(userId) {
@@ -160,10 +187,11 @@ export const dataApi = {
   },
 
   async createRequest({ userId, type, phone, location, notes, preferredTime }) {
+    const authenticatedUserId = assertAuthenticatedUser(userId);
     const requests = getLS(LS_KEYS.requests);
     requests.push({
       id: crypto.randomUUID(),
-      userId,
+      userId: authenticatedUserId,
       type,
       phone: phone || null,
       location: location || null,
@@ -180,8 +208,9 @@ export const dataApi = {
   },
 
   async updateRequestNotes({ userId, requestId, notes, preferredTime }) {
+    const authenticatedUserId = assertAuthenticatedUser(userId);
     const requests = getLS(LS_KEYS.requests);
-    const row = requests.find((x) => x.id === requestId && x.userId === userId);
+    const row = requests.find((x) => x.id === requestId && x.userId === authenticatedUserId);
     if (!row) return;
     row.notes = notes;
     row.preferredTime = preferredTime || row.preferredTime;

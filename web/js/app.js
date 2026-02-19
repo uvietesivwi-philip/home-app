@@ -1,4 +1,6 @@
 import { authApi, dataApi } from './store.js';
+import { ContentFilters } from './components/content-filters.js';
+import { resolveCategoryQuery } from './categories/query-builders.js';
 
 const els = {
   loginBtn: document.getElementById('loginBtn'),

@@ -1,0 +1,43 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    function isApprovedBackendService() {
+      return isSignedIn()
+             && request.auth.token.email == "media-backend@home-app.iam.gserviceaccount.com";
+    }
+
+    // Admin-managed product media.
+    // Path schema: content/{contentId}/...
+    match /content/{contentId}/{allPaths=**} {
+      // Product requirement: only authenticated users can read media.
+      allow read: if isSignedIn();
+
+      // Writes are restricted to admins or approved backend service actors.
+      allow write: if isAdmin() || isApprovedBackendService();
+    }
+
+    // Optional future user asset namespace.
+    // Path schema: users/{uid}/...
+    match /users/{uid}/{allPaths=**} {
+      // Keep reads authenticated unless product requirements change.
+      allow read: if isSignedIn();
+
+      // Writes are restricted to admins or approved backend services.
+      // No direct user wildcard writes.
+      allow write: if isAdmin() || isApprovedBackendService();
+    }
+
+    // Default deny to prevent unsafe wildcard writes outside approved schemas.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -31,8 +31,8 @@ function setLS(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-function sortByDateDesc(rows, key) {
-  return [...rows].sort((a, b) => new Date(b[key]) - new Date(a[key]));
+function sortByNewest(rows) {
+  return [...rows].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
 export const authApi = {
@@ -60,20 +60,23 @@ export const dataApi = {
     if (!localStorage.getItem(LS_KEYS.requests)) setLS(LS_KEYS.requests, []);
   },
 
-  async listContent({ category, subcategory } = {}) {
+  async listContent({ category, subcategory, type, limit = 6, page = 1 } = {}) {
     let rows = getLS(LS_KEYS.content);
     if (category && category !== 'all') rows = rows.filter((x) => x.category === category);
     if (subcategory && subcategory !== 'all') rows = rows.filter((x) => x.subcategory === subcategory);
-    return sortByDateDesc(rows, 'createdAt');
-  },
+    if (type && type !== 'all') rows = rows.filter((x) => x.type === type);
 
-  async getContentById(contentId) {
-    if (!contentId) return null;
-    return getLS(LS_KEYS.content).find((x) => x.id === contentId) || null;
-  },
+    rows = sortByNewest(rows);
+    const start = (page - 1) * limit;
+    const paged = rows.slice(start, start + limit);
 
-  async listSuggestedContent(limit = 2) {
-    return sortByDateDesc(getLS(LS_KEYS.content), 'createdAt').slice(0, limit);
+    return {
+      rows: paged,
+      total: rows.length,
+      page,
+      limit,
+      hasMore: start + limit < rows.length
+    };
   },
 
   async listSaved(userId) {
@@ -133,11 +136,12 @@ export const dataApi = {
   },
 
   async updateRequestNotes({ userId, requestId, notes, preferredTime }) {
-    await requestRepository.updateUserDetails({ userId, requestId, notes, preferredTime });
-  },
-
-  async seedDefaultContent() {
-    setLS(LS_KEYS.content, await loadDefaultContent());
+    const requests = getLS(LS_KEYS.requests);
+    const row = requests.find((x) => x.id === requestId && x.userId === userId);
+    if (!row) return;
+    row.notes = notes;
+    row.preferredTime = preferredTime || row.preferredTime;
+    setLS(LS_KEYS.requests, requests);
   }
 };
 

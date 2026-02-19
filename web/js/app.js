@@ -1,22 +1,19 @@
 import { authApi, dataApi } from './store.js';
+import { ContentFilters } from './components/content-filters.js';
+import { resolveCategoryQuery } from './categories/query-builders.js';
 
-const taxonomy = {
-  cook: ['african', 'continental'],
-  care: ['bathing', 'dressing', 'hairstyling'],
-  diy: ['decor', 'maintenance'],
-  family: ['parents', 'kids']
-};
+const PAGE_SIZE = 4;
 
 const els = {
   loginBtn: document.getElementById('loginBtn'),
   logoutBtn: document.getElementById('logoutBtn'),
-  categoryGrid: document.getElementById('categoryGrid'),
-  subcategoryGrid: document.getElementById('subcategoryGrid'),
-  refreshContent: document.getElementById('refreshContent'),
-  searchInput: document.getElementById('searchInput'),
-  sortSelect: document.getElementById('sortSelect'),
+  filterMount: document.getElementById('filterMount'),
+  queryPreview: document.getElementById('queryPreview'),
   contentList: document.getElementById('contentList'),
-  detailBox: document.getElementById('detailBox'),
+  prevPageBtn: document.getElementById('prevPageBtn'),
+  nextPageBtn: document.getElementById('nextPageBtn'),
+  pageMeta: document.getElementById('pageMeta'),
+  refreshContent: document.getElementById('refreshContent'),
   savedList: document.getElementById('savedList'),
   continueBox: document.getElementById('continueBox'),
   suggestedList: document.getElementById('suggestedList'),
@@ -29,200 +26,108 @@ const els = {
 
 const state = {
   currentUser: null,
-  category: 'cook',
-  subcategory: null,
-  searchTerm: '',
-  sortBy: 'newest'
+  filters: { category: 'all', subcategory: 'all', type: 'all' },
+  page: 1
 };
 
-function ensureSignedIn() {
-  if (!state.currentUser) throw new Error('Sign in to perform this action.');
-}
-
-function createPill(text, active, onClick) {
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = `pill ${active ? 'active' : ''}`;
-  btn.textContent = text;
-  btn.addEventListener('click', onClick);
-  return btn;
-}
-
-function setLoading(container, message = 'Loading...') {
-  container.innerHTML = `<div class="item placeholder">${message}</div>`;
-}
-
-function setRetry(container, message, onRetry) {
-  container.innerHTML = `<div class="item"><p class="small">${message}</p><button class="secondary retryBtn">Retry</button></div>`;
-  container.querySelector('.retryBtn').addEventListener('click', onRetry);
-}
-
-function sortRows(rows) {
-  const out = [...rows];
-  if (state.sortBy === 'oldest') out.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-  else if (state.sortBy === 'shortest') out.sort((a, b) => (a.durationMin || 999) - (b.durationMin || 999));
-  else out.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  return out;
-}
-
-function renderDetail(row) {
-  if (!row) {
-    els.detailBox.innerHTML = '<p class="small">Select “View details” on any content item to see richer guidance here.</p>';
-    return;
+const filters = new ContentFilters({
+  root: els.filterMount,
+  onChange(nextFilters) {
+    state.filters = nextFilters;
+    state.page = 1;
+    renderContent();
   }
-  els.detailBox.innerHTML = `
-    <div class="detail-media">
-      <img class="detail-image" src="${row.coverImage || ''}" alt="${row.title} visual" />
-    </div>
-    <h3>${row.title}</h3>
-    <p class="subtle">${row.description || row.summary}</p>
-    <p class="small">Category: <strong>${row.category}/${row.subcategory}</strong> • Type: <strong>${row.type}</strong></p>
-  `;
+});
+
+function ensureSignedIn() {
+  if (!state.currentUser) throw new Error('Sign in first.');
 }
 
-async function getVisibleContent() {
-  const rows = await dataApi.listContent({ category: state.category, subcategory: state.subcategory || undefined });
-  const filtered = rows.filter((row) => {
-    if (!state.searchTerm) return true;
-    const blob = [row.title, row.summary, row.description, ...(row.tags || [])].join(' ').toLowerCase();
-    return blob.includes(state.searchTerm.toLowerCase());
-  });
-  return sortRows(filtered);
+function renderQueryPreview() {
+  const query = resolveCategoryQuery(state.filters);
+  els.queryPreview.textContent = JSON.stringify(query, null, 2);
 }
 
 async function renderContent() {
-  setLoading(els.contentList, 'Loading content...');
-  try {
-    const rows = await getVisibleContent();
-    els.contentList.innerHTML = '';
-    if (!rows.length) {
-      els.contentList.innerHTML = '<p class="small">No content matched your current filters.</p>';
-      renderDetail(null);
-      return;
-    }
-    rows.forEach((row) => {
-      const node = els.tpl.content.cloneNode(true);
-      node.querySelector('.meta').textContent = `${row.category}/${row.subcategory}`;
-      node.querySelector('.cover').src = row.coverImage || '';
-      node.querySelector('.media-chip').textContent = row.type.toUpperCase();
-      node.querySelector('.audience').textContent = row.audience || 'general';
-      node.querySelector('.title').textContent = row.title;
-      node.querySelector('.summary').textContent = row.summary;
-      node.querySelector('.details').textContent = `${row.durationMin || '-'} min`;
-      node.querySelector('.tags').innerHTML = (row.tags || []).map((tag) => `<span class="chip">#${tag}</span>`).join('');
-      node.querySelector('.viewBtn').addEventListener('click', () => renderDetail(row));
-      node.querySelector('.saveBtn').addEventListener('click', async () => {
-        ensureSignedIn();
-        await dataApi.saveContent({ userId: state.currentUser.uid, contentId: row.id });
-        await renderSaved();
-      });
-      node.querySelector('.progressBtn').addEventListener('click', async () => {
-        ensureSignedIn();
-        await dataApi.addProgress({ userId: state.currentUser.uid, contentId: row.id, deltaSeconds: 30 });
-        await renderContinueWatching();
-      });
-      els.contentList.appendChild(node);
-    });
-  } catch (error) {
-    setRetry(els.contentList, 'Could not load content.', renderContent);
+  renderQueryPreview();
+
+  const result = await dataApi.listContent({
+    ...state.filters,
+    page: state.page,
+    limit: PAGE_SIZE
+  });
+
+  els.contentList.innerHTML = '';
+
+  if (!result.rows.length) {
+    els.contentList.innerHTML = '<p class="small">No content matched this filter set.</p>';
   }
+
+  result.rows.forEach((row) => {
+    const node = els.tpl.content.cloneNode(true);
+    node.querySelector('.title').textContent = row.title;
+    node.querySelector('.summary').textContent = row.summary;
+    node.querySelector('.meta').textContent = `${row.category}/${row.subcategory} • ${row.type}`;
+
+    node.querySelector('.saveBtn').addEventListener('click', async () => {
+      ensureSignedIn();
+      await dataApi.saveContent({ userId: state.currentUser.uid, contentId: row.id });
+      await renderSaved();
+    });
+
+    node.querySelector('.progressBtn').addEventListener('click', async () => {
+      ensureSignedIn();
+      await dataApi.addProgress({ userId: state.currentUser.uid, contentId: row.id, deltaSeconds: 30 });
+      await renderContinueWatching();
+    });
+
+    els.contentList.appendChild(node);
+  });
+
+  const totalPages = Math.max(1, Math.ceil(result.total / result.limit));
+  els.pageMeta.textContent = `Page ${state.page} of ${totalPages} (${result.total} items)`;
+  els.prevPageBtn.disabled = state.page <= 1;
+  els.nextPageBtn.disabled = !result.hasMore;
 }
 
 async function renderSaved() {
-  els.savedList.innerHTML = '';
   if (!state.currentUser) {
     els.savedList.innerHTML = '<p class="small">Sign in to see saved content.</p>';
     els.savedCount.textContent = '0';
     return;
   }
+
   const rows = await dataApi.listSaved(state.currentUser.uid);
   els.savedCount.textContent = String(rows.length);
-  if (!rows.length) {
-    els.savedList.innerHTML = '<p class="small">No saved content yet.</p>';
-    return;
-  }
-  rows.forEach((row) => {
-    const div = document.createElement('div');
-    div.className = 'item';
-    div.innerHTML = `<strong>${row.content.title}</strong><div class="small">Saved ${new Date(row.savedAt).toLocaleString()}</div>`;
-    els.savedList.appendChild(div);
-  });
+  els.savedList.innerHTML = rows.length
+    ? rows.map((row) => `<article class="item"><strong>${row.content.title}</strong></article>`).join('')
+    : '<p class="small">No saved content yet.</p>';
 }
 
 async function renderContinueWatching() {
-  setLoading(els.continueBox, 'Loading latest progress...');
   if (!state.currentUser) {
-    els.continueBox.innerHTML = '<p class="small">Sign in to track progress and resume content.</p>';
+    els.continueBox.innerHTML = '<p class="small">Sign in to track progress.</p>';
     return;
   }
-  try {
-    const latest = await dataApi.continueWatching(state.currentUser.uid);
-    if (latest.state === 'empty') {
-      els.continueBox.innerHTML = '<p class="small">No progress yet. Tap +30s on any content to start tracking.</p>';
-      return;
-    }
-    if (latest.state === 'deleted') {
-      els.continueBox.innerHTML = '<p class="small">Your latest progress references deleted content. Continue with a new guide.</p>';
-      return;
-    }
-    if (latest.state === 'stale') {
-      els.continueBox.innerHTML = '<p class="small">Latest progress looks stale or incomplete. Add new progress to refresh your journey.</p>';
-      return;
-    }
-    els.continueBox.innerHTML = `
-      <div class="item">
-        <strong>${latest.content.title}</strong>
-        <p class="small">${latest.progress.progressSeconds}s tracked • updated ${new Date(latest.progress.updatedAt).toLocaleString()}</p>
-      </div>
-    `;
-  } catch (error) {
-    setRetry(els.continueBox, 'Unable to fetch latest progress right now.', renderContinueWatching);
-  }
-}
 
-async function renderSuggested() {
-  setLoading(els.suggestedList, 'Loading suggested content...');
-  try {
-    const rows = await dataApi.listSuggestedContent(2);
-    if (!rows.length) {
-      els.suggestedList.innerHTML = '<p class="small">No suggested content available yet.</p>';
-      return;
-    }
-    els.suggestedList.innerHTML = '';
-    rows.forEach((row) => {
-      const div = document.createElement('div');
-      div.className = 'item';
-      div.innerHTML = `<strong>${row.title}</strong><p class="small">Created ${new Date(row.createdAt).toLocaleString()}</p>`;
-      els.suggestedList.appendChild(div);
-    });
-  } catch (error) {
-    setRetry(els.suggestedList, 'Unable to fetch suggestions right now.', renderSuggested);
-  }
+  const cw = await dataApi.continueWatching(state.currentUser.uid);
+  els.continueBox.innerHTML = cw
+    ? `<article class="item"><strong>${cw.content.title}</strong><p class="small">${cw.progress.progressSeconds}s watched</p></article>`
+    : '<p class="small">No progress tracked yet.</p>';
 }
 
 async function renderRequests() {
-  els.requestList.innerHTML = '';
   if (!state.currentUser) {
     els.requestList.innerHTML = '<p class="small">Sign in to submit and view requests.</p>';
     els.requestCount.textContent = '0';
     return;
   }
+
   const rows = await dataApi.listRequests(state.currentUser.uid);
   els.requestCount.textContent = String(rows.length);
-  if (!rows.length) {
-    els.requestList.innerHTML = '<p class="small">No requests yet.</p>';
-    return;
-  }
-  rows.forEach((row) => {
-    const div = document.createElement('div');
-    div.className = 'item';
-    div.innerHTML = `
-      <div class="request-top"><strong>${row.type.toUpperCase()}</strong><span class="status">${row.status}</span></div>
-      <p>${row.notes || '(no notes)'}</p>
-      <p class="small">${new Date(row.createdAt).toLocaleString()}</p>
-    `;
-    els.requestList.appendChild(div);
-  });
+  els.requestList.innerHTML = rows.length
+    ? rows.map((row) => `<article class="item"><strong>${row.type}</strong><p>${row.notes || '(no notes)'}</p></article>`).join('')
+    : '<p class="small">No requests yet.</p>';
 }
 
 function renderCategoryJourney() {
@@ -255,7 +160,7 @@ function renderSubcategories() {
 
 async function refreshAll() {
   state.currentUser = authApi.getCurrentUser();
-  await Promise.all([renderContent(), renderSaved(), renderContinueWatching(), renderSuggested(), renderRequests()]);
+  await Promise.all([renderContent(), renderSaved(), renderContinueWatching(), renderRequests()]);
 }
 
 els.loginBtn.addEventListener('click', async () => {
@@ -268,17 +173,18 @@ els.logoutBtn.addEventListener('click', async () => {
   await refreshAll();
 });
 
-els.searchInput.addEventListener('input', async (event) => {
-  state.searchTerm = event.target.value;
+els.prevPageBtn.addEventListener('click', async () => {
+  if (state.page <= 1) return;
+  state.page -= 1;
   await renderContent();
 });
 
-els.sortSelect.addEventListener('change', async (event) => {
-  state.sortBy = event.target.value;
+els.nextPageBtn.addEventListener('click', async () => {
+  state.page += 1;
   await renderContent();
 });
 
-els.refreshContent.addEventListener('click', renderContent);
+els.refreshContent.addEventListener('click', () => renderContent());
 
 els.requestForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -297,6 +203,5 @@ els.requestForm.addEventListener('submit', async (event) => {
 });
 
 await dataApi.bootstrap();
-renderCategoryJourney();
-renderSubcategories();
+filters.render();
 await refreshAll();
